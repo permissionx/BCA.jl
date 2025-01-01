@@ -1,10 +1,6 @@
-# need to combine the cell and box structs ?
+include("types.jl")
+include("io.jl")
 
-mutable struct Box
-    vectors::Matrix{Float64}
-    reciprocalVectors::Matrix{Float64}
-    isOrthogonal::Bool
-end
 
 function Box(Vectors::Matrix{Float64})
     # need to improve to detact if it is orithogonal. 
@@ -16,16 +12,6 @@ function CreateBoxByPrimaryVectors(primaryVectors::Matrix{Float64}, sizes::Vecto
     return Box(vectors)
 end
 
-mutable struct Atom
-    id::Int64
-    type::Int64
-    coordinate::Vector{Float64}
-    cellIndex::Vector{Int64}
-    radius::Float64
-    mass::Float64
-    velocityDirection::Vector{Float64}
-    energy::Float64
-end
 
 function Atom(type::Int64, coordinate::Vector{Float64})
     id = 0
@@ -37,27 +23,7 @@ function Atom(type::Int64, coordinate::Vector{Float64})
 end
 
 
-mutable struct GridCell
-    # only for orthogonal box
-    index::Vector{Int64}
-    atoms::Vector{Atom}
-    ranges::Matrix{Float64}
-    centerCoordinate::Vector{Float64}
-    neighborCellsInfo::Dict{Vector{Int64}, NeighborCellInfo}
-    isExplored::Bool
-end
 
-struct NeighborCellInfo
-    index::Vector{Int64}
-    cross::Vector{Int64} # 0 for no cross, 1 for hi, -1 for lo, eg. [0,0,1] for top 
-end
-
-
-mutable struct CellGrid
-    cells::Array{GridCell, 3}
-    vectors::Matrix{Float64}
-    sizes::Vector{Int64}      
-end 
 
 
 function IterPushCellNeighbors!(cellGrid::CellGrid, gridCell::GridCell, 
@@ -125,17 +91,6 @@ function CreateCellGrid(box::Box, inputVectors::Matrix{Float64}, isOrthogonal::B
     return cellGrid
 end
 
-mutable struct Simulator
-    atoms::Vector{Atom}
-    box::Box
-    cellGrid::CellGrid
-    periodic::Vector{Bool}
-    isOrthogonal::Bool
-
-    maxAtomID::Int64
-    numberOfAtoms::Int64
-end
-
 function Simulator(box::Box, inputGridVectors::Matrix{Float64}, periodic::Vector{Bool})
     cellGrid = CreateCellGrid(box, inputGridVectors, box.isOrthogonal)
     return Simulator(Vector{Atom}(), box, cellGrid, periodic, box.isOrthogonal, 1, 0)
@@ -192,6 +147,9 @@ end
 
 
 function ComputeDistance_squard(atom1::Atom, atom2::Atom, crossFlag::Vector{Int64}, box::Box)
+    if crossFlag == Vector{Int64}([0,0,0])
+        return ComputeDistance_squard(atom1, atom2)
+    end
     dv = VectorDifference(atom1.coordinate, atom2.coordinate, crossFlag, box)
     distance_squard = dv[1]* dv[1] + dv[2]*dv[2] + dv[3]  * dv[3]
     return distance_squard
@@ -238,34 +196,29 @@ function VectorDifference(v1::Vector{Int64}, v2::Vector{Int64})
     return v2 - v1
 end
 
-function GetTargetFromNeighbor(atom::Atom, cellGrid::CellGrid, box::Box)
-    atomCell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
-    minDistance = Inf
+
+
+function GetTargetFromNeighbor(atom::Atom, gridCell::GridCell, cellGrid::CellGrid, box::Box)
+    minDistance = Inf 
     target = atom
-    for (_, neighborCellInfo) in atomCell.neighborCellsInfo
-        index = neighborCellInfo.index 
+    for (_, neighborCellInfo) in gridCell.neighborCellsInfo
+        index = neighborCellInfo.index
         neighborCell = cellGrid.cells[index[1], index[2], index[3]]
-        cross = neighborCellInfo.cross
-        for neighborAtom in neighborCell.atoms
-            if ComputeVDistance(atom, neighborAtom, cross, box) > 0
-                if cross == Vector{Int64}([0,0,0])
-                    distance = ComputeDistance_squard(atom, neighborAtom)
-                else
-                    distance = ComputeDsitance_squard(atom, neighborAtom, cross, box)
-                end
-                if distance < minDistance
-                    minDistance = distance
-                    target = neighborAtom
+        if !neighborCell.isExplored
+            cross = neighborCellInfo.cross
+            neighborCell.isExplored = true
+            for neighborAtom in neighborCell.atoms
+                if ComputeVDistance(atom, neighborAtom, cross, box) > 0
+                    distance = ComputeDistance_squard(atom, neighborAtom, corss, box)
+                    if distance < minDistance
+                        target = neighborAtom
+                    end
                 end
             end
         end
-    if target == atom
-        return nothing
-    else
-        return target
     end
+    return target
 end
-
 
 
 
@@ -284,7 +237,7 @@ function AtomOutFaceDimension(atom::Atom, cell::GridCell)
                 break
             end
         end
-        return d
+        return d, rangeIndex
     end
     error("Atom $(atom.index) out face not found")
 end
@@ -293,17 +246,34 @@ end
 function ChangeAtomCell(atom::Atom, cellGrid::CellGrid, nextCellIndex::Vector{Float64})
     filter!(a -> a.index != atom.index, cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]].atoms)
     atom.cellIndex = nextCellIndex
-    push!(cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]].atoms, atom)
+    nextCell = cellGrid.cells[cellIndex[1], cellIndex[2], cellIndex[3]]
+    push!(nextCell.atoms, atom)
 end
 
-function ToNextCell(atom::Atom, cellGrid::CellGrid)
 
-function ShotTarget(atom::Atom, cellGrid::CellGrid, box::Box)
+function ShotTarget(atom::Atom, cellGrid::CellGrid, box::Box, periodic::Vector{Bool})
+    cell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
     while True
-        targetAtom = TargetAtom(atom, cellGrid, box)
-        if targetAtom != nothing
-            return targetAtom
+        target = GetTargetFromNeighbor(atom, cell, cellGrid, box)
+        if target.index != atom.index
+            for cell in cellGrid.cells
+                cell.isExplored = false
+            end 
+            return target
         else
+            dimension, direction = AtomOutFaceDimension(atom, cell)
+            neighborIndex = Vector{Int64}[0,0,0]
+            neighborIndex[dimension] = direction == 1 ? -1 : 1
+            neighborInfo = cell.neighborCellsInfo[neighborIndex]
+            if !periodic[dimension]
+                if neighborInfo.cross[dimension] != 0
+                    return atom # means find nothing 
+                end
+            end 
+            cell = cellGrid.cells[cellIndex[1], cellIndex[2], cellIndex[3]]
+        end
+    end
+end
 
 
 
