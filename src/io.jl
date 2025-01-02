@@ -22,7 +22,7 @@ function Dump(simulator::Simulator, filename::String, step::Int64, is_append::Bo
         end
         write(file, "ITEM: ATOMS id type x y z vx vy vz energy cx cy cz\n")
         for atom in simulator.atoms
-            write(file, "$(atom.id) $(atom.type) \
+            write(file, "$(atom.index) $(atom.type) \
             $(atom.coordinate[1]) $(atom.coordinate[2]) $(atom.coordinate[3]) \
             $(atom.velocityDirection[1]) $(atom.velocityDirection[2]) $(atom.velocityDirection[3]) \
             $(atom.energy) \

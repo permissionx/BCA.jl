@@ -7,7 +7,7 @@ end
 
 
 mutable struct Atom
-    id::Int64
+    index::Int64
     type::Int64
     coordinate::Vector{Float64}
     cellIndex::Vector{Int64}
