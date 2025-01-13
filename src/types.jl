@@ -15,6 +15,11 @@ mutable struct Atom
     mass::Float64
     velocityDirection::Vector{Float64}
     energy::Float64
+    Z::Float64
+
+    pValue::Float64
+    pPoint::Vector{Float64}
+    pVector::Vector{Float64}
 end
 
 
@@ -22,6 +27,7 @@ struct NeighborCellInfo
     index::Vector{Int64}
     cross::Vector{Int64} # 0 for no cross, 1 for hi, -1 for lo, eg. [0,0,1] for top 
 end
+
 
 mutable struct GridCell
     # only for orthogonal box
@@ -40,6 +46,23 @@ mutable struct CellGrid
     sizes::Vector{Int64}      
 end 
 
+struct ConstantsByType
+    a_U::Dict{Vector{Int64}, Float64}
+    E_m::Dict{Int64, Float64}
+    S_e_UpTerm::Dict{Vector{Int64}, Float64}
+    S_e_DownTerm::Dict{Vector{Int64}, Float64}
+    x_nl::Dict{Vector{Int64}, Float64}
+    a::Dict{Int64, Float64}
+    Q_nl::Dict{Int64, Float64}  
+    Q_loc::Dict{Int64, Float64}
+end
+
+struct Constants
+    p_max::Float64
+    q_max::Float64
+    q_max_squared::Float64
+end
+
 mutable struct Simulator
     atoms::Vector{Atom}
     box::Box
@@ -49,4 +72,11 @@ mutable struct Simulator
 
     maxAtomID::Int64
     numberOfAtoms::Int64
+
+    types::Vector{Int64}
+
+    constantsByType::ConstantsByType
+    constants::Constants
 end
+
+
