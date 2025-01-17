@@ -1,5 +1,5 @@
 import Base: push!
-using .BCA
+using .BCA.ConstantFunctions
 using LinearAlgebra
 
 
@@ -17,13 +17,13 @@ end
 function Atom(type::Int64, coordinate::Vector{Float64})
     id = 0
     cellIndex = Vector{Int64}()
-    velocityNorm = Float64[0.0,0.0,0.0]  # length： 0 or one
+    velocityDirection = Float64[0.0,0.0,0.0]  # length： 0 or one
     energy = 0.0
     radius, mass, Z = TypeToProperties(type)
     pValue = -1.0
     pVector = Vector{Float64}()
     pPoint = Vector{Float64}()  
-    return Atom(id, type, coordinate, cellIndex, radius, mass, velocityNorm, energy, Z, pValue, pVector, pPoint)
+    return Atom(id, type, coordinate, cellIndex, radius, mass, velocityDirection, energy, Z, pValue, pVector, pPoint)
 end
 
 
@@ -106,23 +106,31 @@ end
 function InitConstants()
     p_max = 1.0
     q_max = 1.0
-    return Constants(p_max, q_max, q_max*q_max)
+    stopEnergy = 1.0
+    return Constants(p_max, q_max, q_max*q_max, stopEnergy)
 end
 
 
 function InitConstantsByType(types::Vector{Int64}, constants::Constants) 
-    using .BCA.Constants: a_U, E_m, S_e_UpTerm, x_nl, a, Q_nl, Q_loc
+    a_U = Dict{Vector{Int64}, Float64}()
+    E_m = Dict{Int64, Float64}()
+    S_e_UpTerm = Dict{Vector{Int64}, Float64}()
+    S_e_DownTerm = Dict{Vector{Int64}, Float64}()
+    x_nl = Dict{Vector{Int64}, Float64}()
+    a = Dict{Vector{Int64}, Float64}()
+    Q_nl = Dict{Vector{Int64}, Float64}()  
+    Q_loc = Dict{Vector{Int64}, Float64}()
     for p in types
         for t in types
             _, mass_p, Z_p = TypeToProperties(p)
             _, _, Z_t = TypeToProperties(t)
-            a_U[[p,t]] = a_U(Z_p, Z_t)
-            E_m[p] = E_m(Z_p, mass_p)
-            S_e_UpTerm[[p,t]] = S_e_UpTerm(p, Z_p, Z_t, mass_p)
-            x_nl[[p,t]] = x_nl(p, Z_p, Z_t)
-            a[p] = a(Z_p)
-            Q_nl[p] = Q_nl(Z_p, constants.p_max)
-            Q_loc[p] = Q_loc(Z_p, constants.p_max)
+            a_U[[p,t]] = BCA.ConstantFunctions.a_U(Z_p, Z_t)
+            E_m[p] = BCA.ConstantFunctions.E_m(Z_p, mass_p)
+            S_e_UpTerm[[p,t]] = BCA.ConstantFunctions.S_e_UpTerm(p, Z_p, Z_t, mass_p)
+            x_nl[[p,t]] = BCA.ConstantFunctions.x_nl(p, Z_p, Z_t)
+            a[[p,t]] = BCA.ConstantFunctions.a(Z_p, Z_t)
+            Q_nl[[p,t]] = BCA.ConstantFunctions.Q_nl(Z_p, Z_t, constants.p_max)
+            Q_loc[[p,t]] = BCA.ConstantFunctions.Q_loc(Z_p, Z_t)
         end
     end
     return ConstantsByType(a_U, E_m, S_e_UpTerm, S_e_DownTerm, x_nl, a, Q_nl, Q_loc)
@@ -221,7 +229,7 @@ end
 function ComputeVDistance(atom_p::Atom, atom_t::Atom, crossFlag::Vector{Int64}, box::Box)
     # v for atom_p
     dv = VectorDifference(atom_p.coordinate, atom_t.coordinate, crossFlag, box)
-    return dv' * atom_p.velocityNorm
+    return dv' * atom_p.velocityDirection
 end
 
 
@@ -241,10 +249,10 @@ end
 
 function ComputeP!(atom_p::Atom, atom_t::Atom, crossFlag::Vector{Int64}, box::Box)
     dv = VectorDifference(atom_p.coordinate, atom_t.coordinate, crossFlag, box)
-    t = sum(dv .* atom_p.velocityNorm) / sum(atom_p.velocityNorm .* atom_p.velocityNorm)
-    atom.pPoint = atom_p.coordinate + t * atom_p.velocityNorm
-    atom.pVector = atom.pPoint - atom_t.coordinate
-    atom.pValue = norm(atom.pVector)
+    t = sum(dv .* atom_p.velocityDirection) / sum(atom_p.velocityDirection .* atom_p.velocityDirection)
+    atom_t.pPoint = atom_p.coordinate + t * atom_p.velocityDirection
+    atom_t.pVector = atom_t.pPoint - atom_t.coordinate
+    atom_t.pValue = norm(atom_t.pVector)
 end
 
 
@@ -268,7 +276,6 @@ function GetTargetsFromNeighbor(atom::Atom, gridCell::GridCell, simulator::Simul
                     end
                 end
                 if matchFlag
-                    neighborAtom.pVector, neighborAtom.pPoint = ComputePVector(atom, neighborAtom, neighborCellInfo.cross, box)
                     push!(targets, neighborAtom)
                 end
             end
@@ -285,7 +292,7 @@ function SimultaneousCriteria(atom::Atom, neighborAtom::Atom, addedTarget::Atom,
     p_max = simulator.constants.p_max
     ComputeP!(atom, neighborAtom, crossFlag, box)
     flagP = abs(neighborAtom.pValue - addedTarget.pValue) < p_max
-    flagQ = sum((neighborAtom.coordinate - addedTarget.coordinate) .* atom.velocityNorm) < q_max_squared
+    flagQ = sum((neighborAtom.coordinate - addedTarget.coordinate) .* atom.velocityDirection) < q_max_squared
     return flagP && flagQ
 end
 
@@ -298,171 +305,15 @@ function ChangeAtomCell(atom::Atom, cellGrid::CellGrid, nextCellIndex::Vector{Fl
 end
 
 
-function AtomOutFaceDimension(atom::Atom, cell::GridCell)
-    for d in 1:3
-        if atom.velocityNorm[d] >= 0
-            rangeIndex = 2
-        else
-            rangeIndex = 1
-        end
-        faceCoordinate = cell.ranges[d, rangeIndex]
-        t = (faceCoordinate - atom.coordinate[d]) / atom.velocityNorm[d]
-        elseDs = [ed for ed in 1:3 if ed != d]
-        allInRange = true
-        for elseD in elseDs
-            crossCoord = atom.coordinate[elseD] + atom.velocityNorm[elseD] * t
-            if !(cell.ranges[elseD, 1] <= crossCoord <= cell.ranges[elseD, 2])
-                allInRange = false
-                break
-            end
-        end
-        if allInRange
-            return d, rangeIndex
-        end
-    end
-    error("Atom $(atom.index) out face not found")
+
+function SetvelocityDirection!(atom::Atom, velocity::Vector{Float64})
+    atom.velocityDirection = velocity / norm(velocity)
 end
 
-
-
-function ShotTarget(atom::Atom, simulator::Simulator)
-    cellGrid = simulator.cellGrid
-    periodic = simulator.periodic       
-    cell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
-    while true
-        targets = GetTargetsFromNeighbor(atom, cellGrid, simulator)
-        if length(targets) > 0
-            for cell in cellGrid.cells
-                cell.isExplored = false
-            end
-            #for atom in simulator.atoms
-            #    atom.pValue = -1.0
-            #end
-            return targets
-        else
-            dimension, direction = AtomOutFaceDimension(atom, cell)
-            neighborIndex = Vector{Int64}([0,0,0])
-            neighborIndex[dimension] = direction == 1 ? -1 : 1
-            neighborInfo = cell.neighborCellsInfo[neighborIndex]
-            if !periodic[dimension]
-                if neighborInfo.cross[dimension] != 0
-                    for cell in cellGrid.cells
-                        cell.isExplored = false
-                    end
-                    #for atom in simulator.atoms
-                    #    atom.pValue = -1.0
-                    #end
-                    return Vector{Atom}() # means find nothing 
-                end
-            end 
-            index = neighborInfo.index
-            cell = cellGrid.cells[index[1], index[2], index[3]]
-        end
-    end
+function SetEnergy!(atom::Atom, energy::Float64)
+    atom.energy = energy
 end
 
-
-function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
-    N_t = length(atoms_t)
-    tanφList = Vector{Float64}(undef, N_t)
-    tanψList = Vector{Float64}(undef, N_t)
-    E_tList = Vector{Float64}(undef, N_t)
-    E_pList = Vector{Float64}(undef, N_t)
-    x_pList = Vector{Float64}(undef, N_t)
-    x_tList = Vector{Float64}(undef, N_t)
-    QList = Vector{Float64}(undef, N_t)
-    for (i, atom_t) in enumerate(atoms_t)
-        tanφList[i], tanψList[i], E_tList[i], E_pList[i], x_pList[i], x_tList[i], QList[i] = CollisionParams(atom_p, atom_t, atom_t.pValue, atom_t.pValue * atom_t.pValue, simulator)
-    end
-    sumE_t = sum(E_tList)
-    η = N_t * atom_p.energy / (N_t * atom_p.energy + (N_t - 1) * sumE_t)
-
-    # Update atoms_t (target atoms)
-    avePPoint = Vector{Float64}([0,0,0])
-    momentum = Vector{Float64}([0,0,0])
-    for (i, atom_t) in enumerate(atoms_t)
-        tCoordinate = atom_t.coordinate + x_tList[i] * η * atom_p.velocityNorm
-        DisplaceAtom(atom_t, tCoordinate, simulator)
-        velocityNorm = -atom_t.pVector / norm(atom_t.pVector) * tanψList[i] + atom_t.velocityNorm
-        atom_t.velocityNorm = velocityNorm / norm(velocityNorm)
-        atom_t.energy = E_tList[i] * η
-        avePPoint += atom_t.pPoint
-        momentum += sqrt(2 * atom_t.mass * atom_t.energy) * atom_t.velocityNorm
-    end
-
-    # Update atom_p
-    avePPoint /= N_t
-    x_p = η * sum(x_pList)
-    pCoordinate = avePPoint + x_p * atom_p.velocityNorm
-    DisplaceAtom(atom_p, pCoordinate, simulator)
-    velocity = (sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityNorm - momentum) / atom_p.mass
-    atom_p.velocityNorm = velocity / norm(velocity)
-    atom_p.energy = atom_p.energy - sumE_t * η - sum(QList) * η
-end 
-
-function Cascade!(atom_p::Atom, simulator::Simulator)
-    pAtoms = Vector{Atom}([atom_p])
-    while true
-        targetsList = Vector{Vector{Atom}}()
-        for atom in pAtoms
-            targets = ShotTarget(atom, simulator)
-            for pAtom in pAtoms
-                filter!(t->t.index != pAtom.index, targets)
-            end
-            push!(targetsList, targets)
-        end
-        UniqueTargets!(targetsList, pAtoms)
-        nextPAtoms = Vector{Atom}()
-        for (pAtom, targets) in zip(pAtoms, targetsList)
-            Collision!(pAtom, targets, simulator)
-            for target in targets
-                if target.energy > target.dte
-                    target.energy -= target.dte
-                    if target.energy > simulator.constants.stopEnergy
-                        push!(nextPAtoms, target)
-                    else
-                        Place!(target, simulator)
-                    end
-                else
-                    Recover!(target, simulator)
-                end
-            end
-            if pAtom.energy > simulator.constants.stopEnergy
-                push!(nextPAtoms, pAtom)
-            else
-                Place!(pAtom, simulator)
-            end
-        end
-        if length(nextPAtoms) == 0
-            break
-        end
-        pAtoms = nextPAtoms
-    end
-end
-
-function UniqueTargets!(targetsList::Vector{Vector{Atom}}, pAtoms::Vector{Atom})
-    targetToListDict = Dict{Int64, Vector{Int64}}()
-    for (i, targets) in enumerate(targetsList)
-        for target in targets
-            push!(targetToListDict[target.index], i)
-        end
-    end
-    for (targetIndex, targetsListIndex) in targetToListDict
-        if length(targetsListIndex) > 1
-            minEnergy = Float(Inf) 
-            minArg = 0
-            for index in targetsListIndex
-                energy = pAtoms[index].energy
-                if energy < minEnergy
-                    minEnergy = energy
-                    minArg = index
-                end
-            end
-            for index in targetsListIndex
-                if index != minArg 
-                    filter!(t -> t.index != targetIndex, targetsList[index])
-                end
-            end
-        end
-    end
+function GetDTE(atom::Atom, simulator::Simulator)
+    return 10.0
 end

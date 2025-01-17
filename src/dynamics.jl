@@ -5,14 +5,11 @@ function ShotTarget(atom::Atom, simulator::Simulator)
     periodic = simulator.periodic       
     cell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
     while true
-        targets = GetTargetsFromNeighbor(atom, cellGrid, simulator)
+        targets = GetTargetsFromNeighbor(atom, cell, simulator)
         if length(targets) > 0
             for cell in cellGrid.cells
                 cell.isExplored = false
             end
-            #for atom in simulator.atoms
-            #    atom.pValue = -1.0
-            #end
             return targets
         else
             dimension, direction = AtomOutFaceDimension(atom, cell)
@@ -24,9 +21,6 @@ function ShotTarget(atom::Atom, simulator::Simulator)
                     for cell in cellGrid.cells
                         cell.isExplored = false
                     end
-                    #for atom in simulator.atoms
-                    #    atom.pValue = -1.0
-                    #end
                     return Vector{Atom}() # means find nothing 
                 end
             end 
@@ -36,6 +30,30 @@ function ShotTarget(atom::Atom, simulator::Simulator)
     end
 end
 
+function AtomOutFaceDimension(atom::Atom, cell::GridCell)
+    for d in 1:3
+        if atom.velocityDirection[d] >= 0
+            rangeIndex = 2
+        else
+            rangeIndex = 1
+        end
+        faceCoordinate = cell.ranges[d, rangeIndex]
+        t = (faceCoordinate - atom.coordinate[d]) / atom.velocityDirection[d]
+        elseDs = [ed for ed in 1:3 if ed != d]
+        allInRange = true
+        for elseD in elseDs
+            crossCoord = atom.coordinate[elseD] + atom.velocityDirection[elseD] * t
+            if !(cell.ranges[elseD, 1] <= crossCoord <= cell.ranges[elseD, 2])
+                allInRange = false
+                break
+            end
+        end
+        if allInRange
+            return d, rangeIndex
+        end
+    end
+    error("Atom $(atom.index) out face not found")
+end
 
 function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     N_t = length(atoms_t)
@@ -56,23 +74,23 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     avePPoint = Vector{Float64}([0,0,0])
     momentum = Vector{Float64}([0,0,0])
     for (i, atom_t) in enumerate(atoms_t)
-        tCoordinate = atom_t.coordinate + x_tList[i] * η * atom_p.velocityNorm
+        tCoordinate = atom_t.coordinate + x_tList[i] * η * atom_p.velocityDirection
         DisplaceAtom(atom_t, tCoordinate, simulator)
-        velocityNorm = -atom_t.pVector / norm(atom_t.pVector) * tanψList[i] + atom_t.velocityNorm
-        atom_t.velocityNorm = velocityNorm / norm(velocityNorm)
-        atom_t.energy = E_tList[i] * η
+        velocityDirectionTmp = -atom_t.pVector / norm(atom_t.pVector) * tanψList[i] + atom_t.velocityDirection
+        SetvelocityDirection!(atom_t, velocityDirectionTmp)
+        SetEnergy!(atom_t, E_tList[i] * η)
         avePPoint += atom_t.pPoint
-        momentum += sqrt(2 * atom_t.mass * atom_t.energy) * atom_t.velocityNorm
+        momentum += sqrt(2 * atom_t.mass * atom_t.energy) * atom_t.velocityDirection
     end
 
     # Update atom_p
     avePPoint /= N_t
     x_p = η * sum(x_pList)
-    pCoordinate = avePPoint + x_p * atom_p.velocityNorm
+    pCoordinate = avePPoint + x_p * atom_p.velocityDirection
     DisplaceAtom(atom_p, pCoordinate, simulator)
-    velocity = (sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityNorm - momentum) / atom_p.mass
-    atom_p.velocityNorm = velocity / norm(velocity)
-    atom_p.energy = atom_p.energy - sumE_t * η - sum(QList) * η
+    velocity = (sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection - momentum) / atom_p.mass
+    SetvelocityDirection!(atom_p, velocity)
+    SetEnergy!(atom_p, atom_p.energy - sumE_t * η - sum(QList) * η)
 end 
 
 function Cascade!(atom_p::Atom, simulator::Simulator)
@@ -91,8 +109,8 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
         for (pAtom, targets) in zip(pAtoms, targetsList)
             Collision!(pAtom, targets, simulator)
             for target in targets
-                if target.energy > target.dte
-                    target.energy -= target.dte
+                if target.energy > GetDTE(target, simulator)        
+                    SetEnergy!(target, target.energy - GetDTE(target, simulator))
                     if target.energy > simulator.constants.stopEnergy
                         push!(nextPAtoms, target)
                     else

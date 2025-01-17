@@ -3,7 +3,6 @@ using LinearAlgebra
 using QuadGK
 using Base.MathConstants
 using Main: Atom, Simulator
-using .QLoss
 
 export Collision
 
@@ -64,7 +63,7 @@ function θ(p::Float64, p_squared::Float64, atom_p::Atom, atom_t::Atom, rStart::
 end
 
 
-function Integrate_g_τ(p_squared::FLoat64, E_r::Float64, Z_p::Float64, Z_t::Float64, type_P::Int64, type_T::Int64, rStart::Float64, simulator::Simulator)::Float64
+function Integrate_g_τ(p_squared::Float64, E_r::Float64, Z_p::Float64, Z_t::Float64, type_P::Int64, type_T::Int64, rStart::Float64, simulator::Simulator)::Float64
     result = quadgk(r -> 1 / g(r, p_squared, E_r, Z_p, Z_t, type_P, type_T, simulator) - 1 / sqrt(1 - p_squared / (r * r)),
         rStart, 1000.0,
         rtol=1e-8)[1]
@@ -123,9 +122,8 @@ end
 
 
 
-
-
 module QLoss
+using Main: Atom, Simulator
 # atomic_density = 0.25::Float64 # atomic density, unit: 1/angstrom^3
 # 
 # constants for different types:
@@ -177,8 +175,9 @@ end
 
 end
 
-module Constants
+module ConstantFunctions
 using Base.MathConstants
+using ..BCA: qe_squared
 
 function α(type_p::Int64)
     return type_p / 137.035999074
@@ -205,23 +204,22 @@ function S_e_UpTerm(type_p::Int64,Z_p::Float64, Z_t::Float64, m_p::Float64)
 end
 
 function x_nl(type_p::Int64, Z_p::Float64, Z_t::Float64)
-    using ..BCA: qe_squared
     return β(type_p) * (a_U(Z_p, Z_t) / (Z_p * Z_t * qe_squared))^0.075
 end
 
-function a(Z_p::Float64)
+function a(Z_p::Float64, Z_t::Float64)
     return 1.45 * a_U(Z_p, Z_t) / 0.3 / Z_p^0.4
 end
 
-function Q_nl(Z_p::Float64, p_max::Float64)
-    a = a(Z_p)
-    return (1 + p_max / a) * exp(-p_max / a)
+function Q_nl(Z_p::Float64, Z_t::Float64, p_max::Float64)
+    return (1 + p_max / a(Z_p, Z_t)) * exp(-p_max / a(Z_p, Z_t))
 end
 
-function Q_loc(Z_p::Float64)
-    a = a(Z_p)
-    return 1 / (2 * π * a * a)
+function Q_loc(Z_p::Float64, Z_t::Float64)
+    return 1 / (2 * π * a(Z_p, Z_t)^2)
 end
 
 end
+
+
 end
