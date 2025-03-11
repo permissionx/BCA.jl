@@ -49,8 +49,8 @@ end
 struct ConstantsByType
     a_U::Dict{Vector{Int64}, Float64}
     E_m::Dict{Int64, Float64}
-    S_e_UpTerm::Dict{Vector{Int64}, Float64}
-    S_e_DownTerm::Dict{Vector{Int64}, Float64}
+    S_e_upTerm::Dict{Vector{Int64}, Float64}
+    S_e_downTerm::Dict{Vector{Int64}, Float64}
     x_nl::Dict{Vector{Int64}, Float64}
     a::Dict{Vector{Int64}, Float64}
     Q_nl::Dict{Vector{Int64}, Float64}  
@@ -62,6 +62,7 @@ struct Constants
     q_max::Float64
     q_max_squared::Float64
     stopEnergy::Float64
+    N_density::Float64
 end
 
 mutable struct Simulator

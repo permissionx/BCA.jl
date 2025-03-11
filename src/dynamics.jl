@@ -4,6 +4,7 @@ function ShotTarget(atom::Atom, simulator::Simulator)
     cellGrid = simulator.cellGrid
     periodic = simulator.periodic       
     cell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
+    accCrossFlag = Vector{Int64}([0,0,0])
     while true
         targets = GetTargetsFromNeighbor(atom, cell, simulator)
         if length(targets) > 0
@@ -12,16 +13,19 @@ function ShotTarget(atom::Atom, simulator::Simulator)
             end
             return targets
         else
-            dimension, direction = AtomOutFaceDimension(atom, cell)
+            dimension, direction = AtomOutFaceDimension(atom, cell, accCrossFlag, simulator.box)
             neighborIndex = Vector{Int64}([0,0,0])
             neighborIndex[dimension] = direction == 1 ? -1 : 1
             neighborInfo = cell.neighborCellsInfo[neighborIndex]
+            accCrossFlag += neighborInfo.cross
             if !periodic[dimension]
                 if neighborInfo.cross[dimension] != 0
                     for cell in cellGrid.cells
                         cell.isExplored = false
                     end
-                    return Vector{Atom}() # means find nothing 
+                    println("atom $(atom.index) escaped.")
+                    exit()
+                    return Vector{Atom}() # means find nothing  
                 end
             end 
             index = neighborInfo.index
@@ -30,7 +34,13 @@ function ShotTarget(atom::Atom, simulator::Simulator)
     end
 end
 
-function AtomOutFaceDimension(atom::Atom, cell::GridCell)
+function AtomOutFaceDimension(atom::Atom, cell::GridCell, crossFlag::Vector{Int64}, box::Box)
+    coordinate = copy(atom.coordinate)
+    for d in 1:3
+        if crossFlag[d] != 0
+            coordinate[d] = coordinate[d] - crossFlag[d] * box.vectors[d, d]
+        end
+    end 
     for d in 1:3
         if atom.velocityDirection[d] >= 0
             rangeIndex = 2
@@ -38,11 +48,11 @@ function AtomOutFaceDimension(atom::Atom, cell::GridCell)
             rangeIndex = 1
         end
         faceCoordinate = cell.ranges[d, rangeIndex]
-        t = (faceCoordinate - atom.coordinate[d]) / atom.velocityDirection[d]
+        t = (faceCoordinate - coordinate[d]) / atom.velocityDirection[d]
         elseDs = [ed for ed in 1:3 if ed != d]
         allInRange = true
         for elseD in elseDs
-            crossCoord = atom.coordinate[elseD] + atom.velocityDirection[elseD] * t
+            crossCoord = coordinate[elseD] + atom.velocityDirection[elseD] * t
             if !(cell.ranges[elseD, 1] <= crossCoord <= cell.ranges[elseD, 2])
                 allInRange = false
                 break
@@ -52,8 +62,9 @@ function AtomOutFaceDimension(atom::Atom, cell::GridCell)
             return d, rangeIndex
         end
     end
-    error("Atom $(atom.index) out face not found")
+    error("Out face not found\n $(atom) \n $(cell)")
 end
+
 
 function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     N_t = length(atoms_t)
@@ -69,8 +80,7 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     end
     sumE_t = sum(E_tList)
     η = N_t * atom_p.energy / (N_t * atom_p.energy + (N_t - 1) * sumE_t)
-
-    # Update atoms_t (target atoms)
+    # Update atoms_t (target atoms)         
     avePPoint = Vector{Float64}([0,0,0])
     momentum = Vector{Float64}([0,0,0])
     for (i, atom_t) in enumerate(atoms_t)
@@ -82,7 +92,6 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
         avePPoint += atom_t.pPoint
         momentum += sqrt(2 * atom_t.mass * atom_t.energy) * atom_t.velocityDirection
     end
-
     # Update atom_p
     avePPoint /= N_t
     x_p = η * sum(x_pList)
@@ -91,7 +100,9 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     velocity = (sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection - momentum) / atom_p.mass
     SetvelocityDirection!(atom_p, velocity)
     SetEnergy!(atom_p, atom_p.energy - sumE_t * η - sum(QList) * η)
+    Dump(simulator, "../output/test_graphene.dump", 1, true)
 end 
+
 
 function Cascade!(atom_p::Atom, simulator::Simulator)
     pAtoms = Vector{Atom}([atom_p])
@@ -110,11 +121,11 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
             Collision!(pAtom, targets, simulator)
             for target in targets
                 if target.energy > GetDTE(target, simulator)        
-                    SetEnergy!(target, target.energy - GetDTE(target, simulator))
+                    SetEnergy!(target, target.energy - GetBDE(target, simulator)) # BDE: bonding energy
                     if target.energy > simulator.constants.stopEnergy
                         push!(nextPAtoms, target)
                     else
-                        Place!(target, simulator)
+                        Stop!(target, simulator)
                     end
                 else
                     Recover!(target, simulator)
@@ -123,7 +134,7 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
             if pAtom.energy > simulator.constants.stopEnergy
                 push!(nextPAtoms, pAtom)
             else
-                Place!(pAtom, simulator)
+                Stop!(pAtom, simulator)
             end
         end
         if length(nextPAtoms) == 0
@@ -133,26 +144,31 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
     end
 end
 
+
 function UniqueTargets!(targetsList::Vector{Vector{Atom}}, pAtoms::Vector{Atom})
     targetToListDict = Dict{Int64, Vector{Int64}}()
     for (i, targets) in enumerate(targetsList)
         for target in targets
-            push!(targetToListDict[target.index], i)
+            try 
+                push!(targetToListDict[target.index], i)
+            catch 
+                targetToListDict[target.index] = Vector{Int64}([i])
+            end
         end
     end
     for (targetIndex, targetsListIndex) in targetToListDict
         if length(targetsListIndex) > 1
-            minEnergy = Float(Inf) 
-            minArg = 0
+            maxEnergy = -1.0
+            maxArg = 0
             for index in targetsListIndex
                 energy = pAtoms[index].energy
-                if energy < minEnergy
-                    minEnergy = energy
-                    minArg = index
+                if energy > maxEnergy
+                    maxEnergy = energy
+                    maxArg = index
                 end
             end
             for index in targetsListIndex
-                if index != minArg 
+                if index != maxArg 
                     filter!(t -> t.index != targetIndex, targetsList[index])
                 end
             end

@@ -4,7 +4,7 @@ using QuadGK
 using Base.MathConstants
 using Main: Atom, Simulator
 
-export Collision
+export CollisionParams
 
 qe_squared = Float64(1.4399764) # square of element charge, unit: eV*angstrom
 
@@ -23,7 +23,7 @@ function V(r::Float64, Z_p::Float64, Z_t::Float64, type_P::Int64, type_T::Int64,
 end
 
 function E_r(atom_p::Atom, atom_t::Atom)
-    return atom_t * atom_p.energy / (atom_p.mass + atom_t.mass)
+    return atom_t.mass * atom_p.energy / (atom_p.mass + atom_t.mass)
 end
 
 function g(r::Float64, p_squared::Float64, E_r::Float64, Z_p::Float64, Z_t::Float64, type_P::Int64, type_T::Int64, simulator::Simulator)
@@ -38,7 +38,7 @@ function FindTurningPoint(p_squared::Float64, E_r::Float64, Z_p::Float64, Z_t::F
         rMid = (rLeft + rRight) / 2
         if (1 - p_squared / (rMid * rMid) - V(rMid, Z_p, Z_t, type_P, type_T, simulator) / E_r) < 0
             rLeft = rMid
-            elses
+        else
             rRight = rMid
         end
     end
@@ -53,8 +53,7 @@ function Integrate_g_θ(p_squared::Float64, E_r::Float64, Z_p::Float64, Z_t::Flo
 end
 
 
-function θ(p::Float64, p_squared::Float64, atom_p::Atom, atom_t::Atom, rStart::Float64, simulator::Simulator)
-    E_r = E_r(atom_p, atom_t)
+function θ(p::Float64, p_squared::Float64, atom_p::Atom, atom_t::Atom, E_r::Float64, rStart::Float64, simulator::Simulator)
     Z_p = atom_p.Z
     Z_t = atom_t.Z
     type_P = atom_p.type
@@ -71,8 +70,7 @@ function Integrate_g_τ(p_squared::Float64, E_r::Float64, Z_p::Float64, Z_t::Flo
 end
 
 
-function τ(p_squared::Float64, atom_p::Atom, atom_t::Atom, rStart::Float64, simulator::Simulator)::Float64
-    E_r = E_r(atom_p, atom_t)
+function τ(p_squared::Float64, atom_p::Atom, atom_t::Atom, E_r::Float64, rStart::Float64, simulator::Simulator)::Float64
     Z_p = atom_p.Z
     Z_t = atom_t.Z
     type_P = atom_p.type
@@ -106,18 +104,18 @@ function x_t(p::Float64, θ::Float64, x_p::Float64)
 end
 
 function CollisionParams(atom_p::Atom, atom_t::Atom, p::Float64, p_squared::Float64, simulator::Simulator)
-    E_r = E_r(atom_p, atom_t)
-    rStart = FindTurningPoint(p_squared, E_r, atom_p.Z, atom_t.Z, atom_p.type, atom_t.type, p, simulator)
-    θ = θ(p, p_squared, atom_p, atom_t, rStart, simulator)
-    τ = τ(p_squared, atom_p, atom_t, rStart, simulator)
-    tanφ = tanφ(atom_p, atom_t, θ)
-    tanψ = tanψ(θ)
-    E_t = E_t(atom_p, atom_t, θ)
-    Q = QLoss.Q(atom_p, atom_t, E_r, p, simulator)
-    E_p = E_p(atom_p, E_t, Q)
-    x_p = x_p(atom_p, atom_t, p, θ, τ)
-    x_t = x_t(p, θ, x_p)
-    return tanφ, tanψ, E_t, E_p, x_p, x_t, Q
+    E_r_v = E_r(atom_p, atom_t)
+    rStart = FindTurningPoint(p_squared, E_r_v, atom_p.Z, atom_t.Z, atom_p.type, atom_t.type, p, simulator)
+    θ_v = θ(p, p_squared, atom_p, atom_t, E_r_v, rStart, simulator)
+    τ_v = τ(p_squared, atom_p, atom_t, E_r_v, rStart, simulator)
+    tanφ_v = tanφ(atom_p, atom_t, θ_v)
+    tanψ_v = tanψ(θ_v)
+    E_t_v = E_t(atom_p, atom_t, θ_v)
+    Q_v = QLoss.Q(atom_p, atom_t, E_r_v, p, simulator)
+    E_p_v = E_p(atom_p, E_t_v, Q_v)
+    x_p_v = x_p(atom_p, atom_t, p, θ_v, τ_v)
+    x_t_v = x_t(p, θ_v, x_p_v)
+    return tanφ_v, tanψ_v, E_t_v, E_p_v, x_p_v, x_t_v, Q_v
 end
 
 
@@ -151,26 +149,26 @@ function x_loc(x_nl::Float64)
 end
 
 
-function Q_nl(atom_p::Atom, S_e::Float64, x_nl::Float64, x_loc::Float64, simulator::Simulator)
+function Q_nl(atom_p::Atom, atom_t::Atom, S_e::Float64, x_nl::Float64, x_loc::Float64, simulator::Simulator)
     # constant: N_density, p_max (half of lattice constant)
-    termRight = x_nl + x_loc * simulator.constantsByType.Q_nl[atom_p.type]
-    return S_e * simulator.constantsByType.N_density * termRight
+    termRight = x_nl + x_loc * simulator.constantsByType.Q_nl[[atom_p.type, atom_t.type]]
+    return S_e * simulator.constants.N_density * termRight
 end 
 
-function Q_loc(atom_p::Atom, S_e::Float64, x_loc::Float64, p::Float64, simulator::Simulator)
-    termUp = x_loc * S_e * exp(-p / simulator.constantsByType.a[atom_p.type])
-    termDown = simulator.constantsByType.Q_loc[satom_p.type]
+function Q_loc(atom_p::Atom, atom_t::Atom, S_e::Float64, x_loc::Float64, p::Float64, simulator::Simulator)
+    termUp = x_loc * S_e * exp(-p / simulator.constantsByType.a[[atom_p.type, atom_t.type]])
+    termDown = simulator.constantsByType.Q_loc[[atom_p.type, atom_t.type]]
     return termUp * termDown
 end
 
 
 function Q(atom_p::Atom, atom_t::Atom, E_r::Float64, p::Float64, simulator::Simulator)
-    S_e = S_e(atom_p, atom_t, simulator)
-    x_nl = x_nl(atom_p, atom_t, E_r, simulator)
-    x_loc = x_loc(x_nl)
-    Q_nl = Q_nl(atom_p, S_e, x_nl, x_loc, simulator)
-    Q_loc = Q_loc(atom_p, S_e, x_loc, p, simulator)
-    return Q_nl + Q_loc 
+    S_e_v = S_e(atom_p, atom_t, simulator)
+    x_nl_v = x_nl(atom_p, atom_t, E_r, simulator)
+    x_loc_v = x_loc(x_nl_v)
+    Q_nl_v = Q_nl(atom_p, atom_t, S_e_v, x_nl_v, x_loc_v, simulator)
+    Q_loc_v = Q_loc(atom_p, atom_t, S_e_v, x_loc_v, p, simulator)
+    return Q_nl_v + Q_loc_v 
 end 
 
 end
@@ -197,7 +195,7 @@ function E_m(Z_p::Float64, mass_p::Float64)
     return 0.5 * mass_p * v_b_squared * Z_p^(4/3)
 end
 
-function S_e_UpTerm(type_p::Int64,Z_p::Float64, Z_t::Float64, m_p::Float64)
+function S_e_upTerm(type_p::Int64,Z_p::Float64, Z_t::Float64, m_p::Float64)
     # In initializations
     k_LS = 1.212 * Z_p^(7/6) * Z_t / ((Z_p^(3/2) + Z_t^(3/2))^(3/2) * m_p^(1/2))
     return α(type_p) * k_LS * E_m(Z_p, m_p)
