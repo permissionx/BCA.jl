@@ -103,7 +103,7 @@ function x_t(p::Float64, θ::Float64, x_p::Float64)
     return p * tan(θ / 2) - x_p
 end
 
-function CollisionParams(atom_p::Atom, atom_t::Atom, p::Float64, p_squared::Float64, simulator::Simulator)
+function CollisionParams(atom_p::Atom, atom_t::Atom, p::Float64, p_squared::Float64, pL::Float64, N::Float64, simulator::Simulator)
     E_r_v = E_r(atom_p, atom_t)
     rStart = FindTurningPoint(p_squared, E_r_v, atom_p.Z, atom_t.Z, atom_p.type, atom_t.type, p, simulator)
     θ_v = θ(p, p_squared, atom_p, atom_t, E_r_v, rStart, simulator)
@@ -111,7 +111,7 @@ function CollisionParams(atom_p::Atom, atom_t::Atom, p::Float64, p_squared::Floa
     tanφ_v = tanφ(atom_p, atom_t, θ_v)
     tanψ_v = tanψ(θ_v)
     E_t_v = E_t(atom_p, atom_t, θ_v)
-    Q_v = QLoss.Q(atom_p, atom_t, E_r_v, p, simulator)
+    Q_v = QLoss.Q(atom_p, atom_t, E_r_v, p, pL, N, simulator)
     E_p_v = E_p(atom_p, E_t_v, Q_v)
     x_p_v = x_p(atom_p, atom_t, p, θ_v, τ_v)
     x_t_v = x_t(p, θ_v, x_p_v)
@@ -122,7 +122,6 @@ end
 
 module QLoss
 using Main: Atom, Simulator
-# atomic_density = 0.25::Float64 # atomic density, unit: 1/angstrom^3
 # 
 # constants for different types:
 function S_e(atom_p::Atom, atom_t::Atom, simulator::Simulator)
@@ -149,10 +148,10 @@ function x_loc(x_nl::Float64)
 end
 
 
-function Q_nl(atom_p::Atom, atom_t::Atom, S_e::Float64, x_nl::Float64, x_loc::Float64, simulator::Simulator)
-    # constant: N_density, p_max (half of lattice constant)
+function Q_nl(atom_p::Atom, atom_t::Atom, S_e::Float64, x_nl::Float64, x_loc::Float64, pL::Float64, N::Float64, simulator::Simulator)
+    # constant:  pMax (half of lattice constant)
     termRight = x_nl + x_loc * simulator.constantsByType.Q_nl[[atom_p.type, atom_t.type]]
-    return S_e * simulator.constants.N_density * termRight
+    return S_e * N * termRight * pL
 end 
 
 function Q_loc(atom_p::Atom, atom_t::Atom, S_e::Float64, x_loc::Float64, p::Float64, simulator::Simulator)
@@ -162,11 +161,11 @@ function Q_loc(atom_p::Atom, atom_t::Atom, S_e::Float64, x_loc::Float64, p::Floa
 end
 
 
-function Q(atom_p::Atom, atom_t::Atom, E_r::Float64, p::Float64, simulator::Simulator)
+function Q(atom_p::Atom, atom_t::Atom, E_r::Float64, p::Float64, pL::Float64, N::Float64, simulator::Simulator)
     S_e_v = S_e(atom_p, atom_t, simulator)
     x_nl_v = x_nl(atom_p, atom_t, E_r, simulator)
     x_loc_v = x_loc(x_nl_v)
-    Q_nl_v = Q_nl(atom_p, atom_t, S_e_v, x_nl_v, x_loc_v, simulator)
+    Q_nl_v = Q_nl(atom_p, atom_t, S_e_v, x_nl_v, x_loc_v, pL, N, simulator)
     Q_loc_v = Q_loc(atom_p, atom_t, S_e_v, x_loc_v, p, simulator)
     return Q_nl_v + Q_loc_v 
 end 
@@ -209,8 +208,8 @@ function a(Z_p::Float64, Z_t::Float64)
     return 1.45 * a_U(Z_p, Z_t) / 0.3 / Z_p^0.4
 end
 
-function Q_nl(Z_p::Float64, Z_t::Float64, p_max::Float64)
-    return (1 + p_max / a(Z_p, Z_t)) * exp(-p_max / a(Z_p, Z_t))
+function Q_nl(Z_p::Float64, Z_t::Float64, pMax::Float64)
+    return (1 + pMax / a(Z_p, Z_t)) * exp(-pMax / a(Z_p, Z_t))
 end
 
 function Q_loc(Z_p::Float64, Z_t::Float64)

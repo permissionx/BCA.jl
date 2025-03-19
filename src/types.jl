@@ -1,4 +1,3 @@
-# need to combine the cell and box structs ?
 mutable struct Box
     vectors::Matrix{Float64}
     reciprocalVectors::Matrix{Float64}
@@ -7,7 +6,8 @@ end
 
 
 mutable struct Atom
-    index::Int64
+    index::Int64  # never change
+    isAlive::Bool
     type::Int64
     coordinate::Vector{Float64}
     cellIndex::Vector{Int64}
@@ -17,9 +17,25 @@ mutable struct Atom
     energy::Float64
     Z::Float64
 
-    pValue::Float64
-    pPoint::Vector{Float64}
-    pVector::Vector{Float64}
+    dte::Float64
+    bde::Float64
+
+    pValue::Dict{Int64, Float64}
+    pPoint::Dict{Int64, Vector{Float64}}
+    pVector::Dict{Int64, Vector{Float64}}
+    pL::Dict{Int64, Float64}
+
+
+    latticePointIndex::Int64 # -1 for off lattice
+end
+
+mutable struct LatticePoint
+    index::Int64
+    type::Int64  # Initial Type, will not change
+    coordinate::Vector{Float64}
+    cellIndex::Vector{Int64}
+
+    atomIndex::Int64 # -1 for vacancy
 end
 
 
@@ -29,14 +45,17 @@ struct NeighborCellInfo
 end
 
 
+
 mutable struct GridCell
     # only for orthogonal box
     index::Vector{Int64}
-    atoms::Vector{Atom}
+    atoms::Vector{Int64}  # change: save atom index 
+    latticePoints::Vector{Int64}  # change: save lattice point index 
     ranges::Matrix{Float64}
     centerCoordinate::Vector{Float64}
     neighborCellsInfo::Dict{Vector{Int64}, NeighborCellInfo}
     isExplored::Bool
+    atomicDensity::Float64
 end
 
 
@@ -44,6 +63,7 @@ mutable struct CellGrid
     cells::Array{GridCell, 3}
     vectors::Matrix{Float64}
     sizes::Vector{Int64}      
+    cellVolume::Float64
 end 
 
 struct ConstantsByType
@@ -58,15 +78,21 @@ struct ConstantsByType
 end
 
 struct Constants
-    p_max::Float64
-    q_max::Float64
-    q_max_squared::Float64
+    pMax::Float64
+    qMax::Float64
+    qMax_squared::Float64
     stopEnergy::Float64
-    N_density::Float64
+    vacancyRecoverDistance_squared::Float64
+    pLMax::Float64
+
+    dumpName::String
+    isDumpInCascade::Bool
+    isLog::Bool
 end
 
 mutable struct Simulator
     atoms::Vector{Atom}
+    latticePoints::Vector{LatticePoint}
     box::Box
     cellGrid::CellGrid
     periodic::Vector{Bool}
@@ -75,10 +101,26 @@ mutable struct Simulator
     maxAtomID::Int64
     numberOfAtoms::Int64
 
-    types::Vector{Int64}
 
     constantsByType::ConstantsByType
     constants::Constants
+
+    isStore::Bool
+    displacedAtoms::Vector{Int64}
+    atomNumberWhenStore::Int64
 end
 
+struct Parameters
+    pMax::Float64
+    qMax::Float64
+    stopEnergy::Float64
+    vacancyRecoverDistance_squared::Float64
+    pLMax::Float64
+
+    dumpName::String
+    isDumpInCascade::Bool
+    isLog::Bool
+
+    typeDict::Dict{Int, NamedTuple{(:radius, :mass, :Z, :dte, :bde), Tuple{Float64, Float64, Float64, Float64, Float64}}}
+end
 
