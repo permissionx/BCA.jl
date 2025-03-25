@@ -20,10 +20,14 @@ mutable struct Atom
     dte::Float64
     bde::Float64
 
+    # for atom_t
     pValue::Dict{Int64, Float64}
     pPoint::Dict{Int64, Vector{Float64}}
     pVector::Dict{Int64, Vector{Float64}}
     pL::Dict{Int64, Float64}
+
+    # for atom_p
+    lastTargets::Vector{Int64}
 
 
     latticePointIndex::Int64 # -1 for off lattice
@@ -49,8 +53,8 @@ end
 mutable struct GridCell
     # only for orthogonal box
     index::Vector{Int64}
-    atoms::Vector{Int64}  # change: save atom index 
-    latticePoints::Vector{Int64}  # change: save lattice point index 
+    atoms::Vector{Int64}  
+    latticePoints::Vector{Int64}  
     ranges::Matrix{Float64}
     centerCoordinate::Vector{Float64}
     neighborCellsInfo::Dict{Vector{Int64}, NeighborCellInfo}
@@ -66,7 +70,9 @@ mutable struct CellGrid
     cellVolume::Float64
 end 
 
+
 struct ConstantsByType
+    V_upterm::Dict{Vector{Int64}, Float64}
     a_U::Dict{Vector{Int64}, Float64}
     E_m::Dict{Int64, Float64}
     S_e_upTerm::Dict{Vector{Int64}, Float64}
@@ -75,12 +81,12 @@ struct ConstantsByType
     a::Dict{Vector{Int64}, Float64}
     Q_nl::Dict{Vector{Int64}, Float64}  
     Q_loc::Dict{Vector{Int64}, Float64}
+    qMax_squared::Dict{Vector{Int64}, Float64}
 end
+
 
 struct Constants
     pMax::Float64
-    qMax::Float64
-    qMax_squared::Float64
     stopEnergy::Float64
     vacancyRecoverDistance_squared::Float64
     pLMax::Float64
@@ -89,6 +95,7 @@ struct Constants
     isDumpInCascade::Bool
     isLog::Bool
 end
+
 
 mutable struct Simulator
     atoms::Vector{Atom}
@@ -108,11 +115,18 @@ mutable struct Simulator
     isStore::Bool
     displacedAtoms::Vector{Int64}
     atomNumberWhenStore::Int64
+
+    nIrradiation::Int64
+
+    isDumpInCascade::Bool
+    dumpName::String
+    isLog::Bool
+
 end
+
 
 struct Parameters
     pMax::Float64
-    qMax::Float64
     stopEnergy::Float64
     vacancyRecoverDistance_squared::Float64
     pLMax::Float64

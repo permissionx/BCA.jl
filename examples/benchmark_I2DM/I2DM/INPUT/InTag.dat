@@ -1,0 +1,21 @@
+######SIMULATION_MODE##########
+MODE = 0            #0-indenpent mode, 1-continuous mode
+INCITIME = 10000    #if MODE = 0, this tag is needed; else if MODE = 1, this tag is not needed.
+#######OUTPUT_TAG##############
+OUTSTRUC = .F.
+OUTDEFECT = .F.
+OUTDISATOM = .F.
+OUTVACANCY = .F.
+OUTSIA = .F.
+OUTSUBSATOM = .F.
+OUTFLYATOM = .F.
+######TARGET_INFORMATION#######
+STRUC_TYPE = 0   #The type of structure file. Allowed type is 0-POSCAR and 1-XXX.cif
+SIZE_A = 50        #a number
+SIZE_B = 50        #b number
+SIZE_C = 1         #c number
+######FACTORS##################
+CAP_R = 1             #capture radius
+E_CUT = 15             #
+INTEG_START_ACCUR = 5  #1E-15
+INTEG_FAC = 1.2        #

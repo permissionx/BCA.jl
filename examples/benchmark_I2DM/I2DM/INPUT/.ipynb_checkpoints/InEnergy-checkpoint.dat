@@ -1,0 +1,5 @@
+#Threshold energy for atoms in unit cell
+#The order of this list matches with structure file.
+#atom	energy(/eV)
+C	22
+C	22

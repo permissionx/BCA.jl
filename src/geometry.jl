@@ -25,12 +25,13 @@ function Atom(type::Int64, coordinate::Vector{Float64}, parameters::Parameters)
     pValue = Dict{Int64, Float64}() # key is the index of the atom_p
     pVector = Dict{Int64, Vector{Float64}}()
     pPoint = Dict{Int64, Vector{Float64}}()  
+    lastTargets = Vector{Int64}()
     pL = Dict{Int64, Float64}()
     latticePointIndex = -1
     return Atom(index, isAlive, type, coordinate, cellIndex, 
                 radius, mass, velocityDirection, energy, Z, 
                 dte, bde,
-                pValue, pVector, pPoint, pL,
+                pValue, pVector, pPoint, pL, lastTargets,
                 latticePointIndex)
 end
 
@@ -113,8 +114,9 @@ function CreateCellGrid(box::Box, inputVectors::Matrix{Float64})
     return cellGrid
 end
 
+
 function InitConstants(parameters::Parameters)
-     return Constants(parameters.pMax, parameters.qMax, parameters.qMax*parameters.qMax, parameters.stopEnergy,
+    return Constants(parameters.pMax, parameters.stopEnergy,
                      parameters.vacancyRecoverDistance_squared, parameters.pLMax, 
                      parameters.dumpName, parameters.isDumpInCascade, parameters.isLog)
 end
@@ -124,6 +126,7 @@ function InitConstantsByType(typeDict::Dict{Int,
                              NamedTuple{(:radius, :mass, :Z, :dte, :bde), 
                                         Tuple{Float64, Float64, Float64, Float64, Float64}}},
                              constants::Constants) 
+    V_upterm = Dict{Vector{Int64}, Float64}()
     a_U = Dict{Vector{Int64}, Float64}()
     E_m = Dict{Int64, Float64}()
     S_e_upTerm = Dict{Vector{Int64}, Float64}()
@@ -133,10 +136,12 @@ function InitConstantsByType(typeDict::Dict{Int,
     Q_nl = Dict{Vector{Int64}, Float64}()  
     Q_loc = Dict{Vector{Int64}, Float64}()
     types = keys(typeDict)
+    qMax_squared = Dict{Vector{Int64}, Float64}()
     for p in types
         for t in types
-            _, mass_p, Z_p, _, _ = TypeToProperties(p, typeDict)
-            _, _, Z_t, _, _ = TypeToProperties(t, typeDict)
+            radius_p, mass_p, Z_p, _, _ = TypeToProperties(p, typeDict)
+            radius_t, _, Z_t, _, _ = TypeToProperties(t, typeDict)
+            V_upterm[[p,t]] = BCA.ConstantFunctions.V_upterm(Z_p, Z_t)
             a_U[[p,t]] = BCA.ConstantFunctions.a_U(Z_p, Z_t)
             E_m[p] = BCA.ConstantFunctions.E_m(Z_p, mass_p)
             S_e_upTerm[[p,t]] = BCA.ConstantFunctions.S_e_upTerm(p, Z_p, Z_t, mass_p)
@@ -144,9 +149,10 @@ function InitConstantsByType(typeDict::Dict{Int,
             a[[p,t]] = BCA.ConstantFunctions.a(Z_p, Z_t)
             Q_nl[[p,t]] = BCA.ConstantFunctions.Q_nl(Z_p, Z_t, constants.pMax)
             Q_loc[[p,t]] = BCA.ConstantFunctions.Q_loc(Z_p, Z_t)
+            qMax_squared[[p,t]] = (radius_p + radius_t) * (radius_p + radius_t)
         end
     end
-    return ConstantsByType(a_U, E_m, S_e_upTerm, S_e_downTerm, x_nl, a, Q_nl, Q_loc)
+    return ConstantsByType(V_upterm, a_U, E_m, S_e_upTerm, S_e_downTerm, x_nl, a, Q_nl, Q_loc, qMax_squared)
 end
 
 
@@ -157,7 +163,8 @@ function Simulator(box::Box, inputGridVectors::Matrix{Float64}, periodic::Vector
     return Simulator(Vector{Atom}(), Vector{LatticePoint}(), 
                      box, cellGrid, periodic, box.isOrthogonal, 0, 0, 
                      constantsByType, constants,
-                     false, Vector{Int64}(), 0)
+                     false, Vector{Int64}(), 0, 0, 
+                     parameters.isDumpInCascade, parameters.dumpName, parameters.isLog)
 end 
 
 
@@ -189,7 +196,6 @@ function Simulator(primaryVectors::Matrix{Float64}, boxSizes::Vector{Int64},
     end 
     return simulator
 end 
-    
 
 
 function WhichCell(coordinate::Vector{Float64}, cellGrid::CellGrid)
@@ -204,6 +210,7 @@ function WhichCell(coordinate::Vector{Float64}, cellGrid::CellGrid)
     end
     return cellIndex
 end
+
 
 function push!(simulator::Simulator, atom::Atom)
     atom.index = simulator.maxAtomID + 1
@@ -222,15 +229,33 @@ function push!(simulator::Simulator, latticePoint::LatticePoint)
     simulator.atoms[latticePoint.atomIndex].latticePointIndex = latticePoint.index
 end 
 
+function push!(cell::GridCell, atom::Atom, simulator::Simulator)
+    atom.cellIndex = cell.index[:]
+    push!(cell.atoms, atom.index)
+    cell.atomicDensity = length(cell.atoms) / simulator.cellGrid.cellVolume
+end 
+
 
 function delete!(simulator::Simulator, atom::Atom)
-    filter!(a -> a != atom.index, simulator.cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]].atoms)
+    originalCell = simulator.cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
+    delete!(originalCell, atom.index, simulator)
     simulator.numberOfAtoms -= 1
-    atom.isAlive = false    
+    atom.isAlive = false 
+    AddToStore!(atom, simulator)       
 end
 
 
-function DisplaceAtom(atom::Atom, newPosition::Vector{Float64}, simulator::Simulator)
+function delete!(cell::GridCell, atomIndex::Int64, simulator::Simulator)
+    if !simulator.atoms[atomIndex].isAlive
+        error("Atom $(atomIndex) is not alive when deleting")
+    end
+    deleteat!(cell.atoms, findfirst(==(atomIndex), cell.atoms)) 
+    simulator.atoms[atomIndex].cellIndex = Vector{Int64}([-1, -1, -1])
+    cell.atomicDensity = length(cell.atoms) / simulator.cellGrid.cellVolume  
+end
+
+
+function DisplaceAtom!(atom::Atom, newPosition::Vector{Float64}, simulator::Simulator)
     for d in 1:3
         if newPosition[d] < 0
             newPosition[d] += simulator.box.vectors[d,d]
@@ -239,11 +264,9 @@ function DisplaceAtom(atom::Atom, newPosition::Vector{Float64}, simulator::Simul
         end
     end
     atom.coordinate .= newPosition
-    if atom.isAlive
-        cellIndex = WhichCell(atom.coordinate, simulator.cellGrid)
-        if cellIndex != atom.cellIndex
-            ChangeAtomCell(atom, simulator.cellGrid, cellIndex)
-        end
+    cellIndex = WhichCell(atom.coordinate, simulator.cellGrid)
+    if cellIndex != atom.cellIndex
+        ChangeCell!(atom, cellIndex, simulator)
     end
 end
 
@@ -290,6 +313,18 @@ function ComputeP!(atom_p::Atom, atom_t::Atom, crossFlag::Vector{Int64}, box::Bo
     atom_t.pValue[atom_p.index] = norm(atom_t.pVector[atom_p.index])
 end
 
+function GetAllNeighbors(gridCell::GridCell, simulator::Simulator)
+    cellGrid = simulator.cellGrid
+    neighbors = Vector{Atom}()
+    for (_, neighborCellInfo) in gridCell.neighborCellsInfo
+        index = neighborCellInfo.index 
+        neighborCell = cellGrid.cells[index[1], index[2], index[3]]
+        neighborAtomIndex = neighborCell.atoms
+        append!(neighbors, [simulator.atoms[index] for index in neighborAtomIndex])
+    end
+    return neighbors
+end
+
 
 function GetTargetsFromNeighbor(atom::Atom, gridCell::GridCell, simulator::Simulator)
     cellGrid = simulator.cellGrid
@@ -305,9 +340,15 @@ function GetTargetsFromNeighbor(atom::Atom, gridCell::GridCell, simulator::Simul
         infiniteFlag = false
         for neighborAtomIndex in neighborCell.atoms
             neighborAtom = simulator.atoms[neighborAtomIndex]
+            #if simulator.nIrradiation == 332 && neighborAtom.index == 296
+            #    println(atom.index, " ", neighborAtom.index)
+            #    println(neighborAtom)
+            #    println(neighborCell.index)
+            #    println(simulator.cellGrid.cells[11,21,11].atoms)
+            #end
             if ComputeVDistance(atom, neighborAtom, neighborCellInfo.cross, box) > 0
                 ComputeP!(atom, neighborAtom, neighborCellInfo.cross, box)
-                if neighborAtom.pValue[atom.index] > simulator.constants.pMax
+                if neighborAtom.pValue[atom.index] >= simulator.constants.pMax
                     DeleteP!(neighborAtom, atom.index)
                     continue
                 end
@@ -349,22 +390,19 @@ end
 
 function SimultaneousCriteria(atom::Atom, neighborAtom::Atom, addedTarget::Atom, crossFlag::Vector{Int64}, simulator::Simulator)
     box = simulator.box
-    qMax_squared = simulator.constants.qMax_squared
+    qMax_squared = simulator.constantsByType.qMax_squared[[neighborAtom.type, addedTarget.type]]
     pMax = simulator.constants.pMax
     flagP = abs(neighborAtom.pValue[atom.index] - addedTarget.pValue[atom.index]) <= pMax
-    flagQ = sum((neighborAtom.coordinate - addedTarget.coordinate) .* atom.velocityDirection) <= qMax_squared
+    flagQ = sum(VectorDifference(neighborAtom.coordinate, addedTarget.coordinate, crossFlag, box) .* atom.velocityDirection) <= sqrt(qMax_squared)
     return flagP && flagQ
 end
 
 
-function ChangeAtomCell(atom::Atom, cellGrid::CellGrid, nextCellIndex::Vector{Int64})
-    originalCell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
-    filter!(a -> a != atom.index, originalCell.atoms)
-    atom.cellIndex = nextCellIndex
-    originalCell.atomicDensity = length(originalCell.atoms) / cellGrid.cellVolume   
-    nextCell = cellGrid.cells[nextCellIndex[1], nextCellIndex[2], nextCellIndex[3]]
-    push!(nextCell.atoms, atom.index)
-    nextCell.atomicDensity = length(nextCell.atoms) / cellGrid.cellVolume
+function ChangeCell!(atom::Atom, nextCellIndex::Vector{Int64}, simulator::Simulator)
+    originalCell = simulator.cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
+    delete!(originalCell, atom.index, simulator)
+    nextCell = simulator.cellGrid.cells[nextCellIndex[1], nextCellIndex[2], nextCellIndex[3]]
+    push!(nextCell, atom, simulator)
 end
 
 
@@ -374,19 +412,6 @@ end
 
 function SetEnergy!(atom::Atom, energy::Float64)
     atom.energy = energy
-end
-
-function Stop!(atom::Atom, simulator::Simulator)
-    SetEnergy!(atom, 0.0)
-    Recover!(atom, simulator)
-end
-
-
-function Recover!(atom::Atom, simulator::Simulator)
-    nearestVacancyIndex = GetNeighborVacancy(atom, simulator)
-    if nearestVacancyIndex != -1
-        SetOnLattice!(atom, simulator.latticePoints[nearestVacancyIndex], simulator)
-    end 
 end
 
 function GetNeighborVacancy(atom::Atom, simulator::Simulator)
@@ -412,30 +437,81 @@ function GetNeighborVacancy(atom::Atom, simulator::Simulator)
     return nearestVacancyIndex
 end
 
-function SetOnLattice!(atom::Atom, latticePoint::LatticePoint, simulator::Simulator)
-    latticePoint.atomIndex = atom.index
-    atom.latticePointIndex = latticePoint.index
-    DisplaceAtom(atom, latticePoint.coordinate, simulator)  
-    atom.cellIndex = copy(latticePoint.cellIndex)
+
+function Stop!(atom::Atom, simulator::Simulator)
+    #SetEnergy!(atom, 0.0)
+    Recover!(atom, simulator)
 end
 
-function Restore!(simulator::Simulator, checkPoint::Simulator)
+
+function Recover!(atom::Atom, simulator::Simulator)
+    nearestVacancyIndex = GetNeighborVacancy(atom, simulator)
+    if nearestVacancyIndex != -1
+        SetOnLatticePoint!(atom, simulator.latticePoints[nearestVacancyIndex], simulator)
+    else
+        atom.latticePointIndex = -1
+        AddToStore!(atom, simulator)
+    end
+end
+
+
+
+
+function SetOnLatticePoint!(atom::Atom, latticePoint::LatticePoint, simulator::Simulator)
+    if atom.latticePointIndex != latticePoint.index  # changed lattice point 
+        if atom.index == latticePoint.index 
+            DeleteFromStore!(atom, simulator)
+        elseif atom.latticePointIndex == atom.index
+            AddToStore!(atom, simulator)
+        end
+        latticePoint.atomIndex = atom.index
+        atom.latticePointIndex = latticePoint.index
+        atom.coordinate = latticePoint.coordinate[:]
+        if atom.cellIndex != latticePoint.cellIndex
+            ChangeCell!(atom, latticePoint.cellIndex, simulator)
+        end
+    else 
+        atom.coordinate = latticePoint.coordinate[:]
+        latticePoint.atomIndex = atom.index
+    end
+end
+
+
+function AddToStore!(atom::Atom, simulator::Simulator)
+    if simulator.isStore && atom.index <= simulator.atomNumberWhenStore
+        push!(simulator.displacedAtoms, atom.index)
+    end
+end
+
+function DeleteFromStore!(atom::Atom, simulator::Simulator)
+    if simulator.isStore && atom.index <= simulator.atomNumberWhenStore
+        deleteat!(simulator.displacedAtoms, findfirst(==(atom.index), simulator.displacedAtoms))
+    end
+end 
+
+function Restore!(simulator::Simulator)
+    if length(simulator.displacedAtoms) != length(Set(simulator.displacedAtoms))
+        error("repeat atom index in displacedAtoms")
+    end 
     for index in simulator.displacedAtoms
         atom = simulator.atoms[index]
-        if atom.latticePointIndex != -1 
-            presentLatticePoint = simulator.latticePoints[atom.latticePointIndex]
-            if  presentLatticePoint.atomIndex == index
-                simulator.latticePoints[atom.latticePointIndex].atomIndex = -1
-            end
+        latticePoint = simulator.latticePoints[atom.index]
+        atom.latticePointIndex = atom.index
+        latticePoint.atomIndex = atom.index
+        atom.coordinate = latticePoint.coordinate[:]
+        if atom.isAlive
+            ChangeCell!(atom, latticePoint.cellIndex, simulator)
+        else
+            atom.isAlive = true
+            nextCell = simulator.cellGrid.cells[latticePoint.cellIndex[1], latticePoint.cellIndex[2], latticePoint.cellIndex[3]]
+            push!(nextCell, atom, simulator)
         end
-        latticePoint = simulator.latticePoints[checkPoint.atoms[index].latticePointIndex]
-        SetOnLattice!(atom, latticePoint, simulator)
-        atom.energy = 0.0
-        atom.isAlive = true
     end
-    simulator.atoms = simulator.atoms[1:checkPoint.numberOfAtoms]
-    simulator.maxAtomID = checkPoint.maxAtomID
-    simulator.numberOfAtoms  = checkPoint.numberOfAtoms
+    maxAtomID = simulator.atomNumberWhenStore
+    simulator.atoms = simulator.atoms[1:maxAtomID]
+    simulator.maxAtomID = maxAtomID
+    simulator.numberOfAtoms  = maxAtomID
+    empty!(simulator.displacedAtoms)
 end
 
 function Save!(simulator::Simulator)
@@ -446,5 +522,4 @@ function Save!(simulator::Simulator)
     end
     simulator.isStore = true
     simulator.atomNumberWhenStore = simulator.numberOfAtoms
-    return deepcopy(simulator)  # cost long time, like 10s. 
 end 

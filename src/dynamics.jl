@@ -1,13 +1,14 @@
 using .BCA
 
-
 function ShotTarget(atom::Atom, simulator::Simulator)
     cellGrid = simulator.cellGrid
-    periodic = simulator.periodic       
+    periodic = simulator.periodic    
     cell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
     accCrossFlag = Vector{Int64}([0,0,0])
     while true
         targets = GetTargetsFromNeighbor(atom, cell, simulator)
+        # delete repeated targets in lastTargets
+        filter!(t->!(t.index in atom.lastTargets), targets)
         if length(targets) > 0
             for cell in cellGrid.cells
                 cell.isExplored = false
@@ -72,7 +73,6 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     tanφList = Vector{Float64}(undef, N_t)
     tanψList = Vector{Float64}(undef, N_t)
     E_tList = Vector{Float64}(undef, N_t)
-    E_pList = Vector{Float64}(undef, N_t)
     x_pList = Vector{Float64}(undef, N_t)
     x_tList = Vector{Float64}(undef, N_t)
     QList = Vector{Float64}(undef, N_t)
@@ -88,10 +88,11 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     for (i, atom_t) in enumerate(atoms_t)
         p = atom_t.pValue[atom_p.index]
         N = cellGrid.cells[atom_t.cellIndex[1], atom_t.cellIndex[2], atom_t.cellIndex[3]].atomicDensity 
-        tanφList[i], tanψList[i], E_tList[i], E_pList[i], x_pList[i], x_tList[i], QList[i] = CollisionParams(atom_p, atom_t, p, p * p, pL, N, simulator)
-        #if atom_t.index == 441
-            #println("DEBUG:\n tanφ: $(tanφList[i])\n tanψ: $(tanψList[i])\n E_t: $(E_tList[i])\n E_p: $(E_pList[i])\n x_p: $(x_pList[i])\n x_t: $(x_tList[i])\n Q: $(QList[i])")
-        #end
+        tanφList[i], tanψList[i], E_tList[i], x_pList[i], x_tList[i], QList[i] = CollisionParams(
+            atom_p.energy, atom_p.mass, atom_t.mass, atom_p.type, atom_t.type, p, pL, N, simulator.constantsByType)
+        # debug: turn off the inelastic collision
+        QList[i] = 0.0
+        #println("DEBUG:\n tanφ: $(tanφList[i])\n tanψ: $(tanψList[i])\n E_t: $(E_tList[i])\n x_p: $(x_pList[i])\n x_t: $(x_tList[i])\n Q: $(QList[i])")
     end
     sumE_t = sum(E_tList)
     η = N_t * atom_p.energy / (N_t * atom_p.energy + (N_t - 1) * sumE_t)
@@ -100,7 +101,7 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     momentum = Vector{Float64}([0.0,0.0,0.0])
     for (i, atom_t) in enumerate(atoms_t)
         tCoordinate = atom_t.coordinate + x_tList[i] * η * atom_p.velocityDirection
-        DisplaceAtom(atom_t, tCoordinate, simulator)
+        DisplaceAtom!(atom_t, tCoordinate, simulator)
         if atom_t.pValue[atom_p.index] != 0
             velocityDirectionTmp = -atom_t.pVector[atom_p.index] / atom_t.pValue[atom_p.index] * tanψList[i] + atom_p.velocityDirection
         else
@@ -112,21 +113,41 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
         momentum += sqrt(2 * atom_t.mass * atom_t.energy) * atom_t.velocityDirection
     end
     # Update atom_p
+    initMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection  #debug 
+
     avePPoint /= N_t
     x_p = η * sum(x_pList)
-    pCoordinate = avePPoint + x_p * atom_p.velocityDirection
-    DisplaceAtom(atom_p, pCoordinate, simulator)
-    velocity = (sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection - momentum) / atom_p.mass
+    pCoordinate = avePPoint - x_p * atom_p.velocityDirection
+    DisplaceAtom!(atom_p, pCoordinate, simulator)
+    velocity = (sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection - momentum)  / atom_p.mass
     SetVelocityDirection!(atom_p, velocity)
+
+
     SetEnergy!(atom_p, atom_p.energy - (sumE_t + sum(QList)) * η)
+    momentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
+
+
+    for atom_t in atoms_t
+        momentum += sqrt(2 * atom_t.mass * atom_t.energy) * atom_t.velocityDirection  # debug
+    end
+
+    open("p.debug.log", "a") do f
+        write(f, "$(simulator.nIrradiation),$(N_t),$(initMomentum[1]),$(initMomentum[2]),$(initMomentum[3]),$(momentum[1]),$(momentum[2]),$(momentum[3])\n")
+    end
+
+    #println(length(atoms_t)," ",initMomentum-momentum," ",initMomentum," ",momentum) #debug
+    #exit()
+
 end 
+
+
 
 
 function Cascade!(atom_p::Atom, simulator::Simulator)
     pAtoms = Vector{Atom}([atom_p])
     nStep = 1
-    if isDumpInCascade
-        Dump(simulator, dumpName, nStep, false)
+    if simulator.isDumpInCascade
+        Dump(simulator, simulator.dumpName, nStep, false)
     end
     while true
         targetsList = Vector{Vector{Atom}}()
@@ -144,34 +165,43 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
                 delete!(simulator, pAtom)
                 continue
             end
+            pAtom.lastTargets = [t.index for t in targets]
             Collision!(pAtom, targets, simulator)
             for target in targets
                 if target.energy > GetDTE(target, simulator)        
                     SetEnergy!(target, target.energy - GetBDE(target, simulator)) # BDE: bonding energy
                     if target.latticePointIndex != -1
                         simulator.latticePoints[target.latticePointIndex].atomIndex = -1
-                        target.latticePointIndex = -1
                     end
-                    if target.energy > simulator.constants.stopEnergy
+                    if target.energy > simulator.constants.stopEnergy               
                         push!(nextPAtoms, target)
-                        if simulator.isStore && target.index <= simulator.atomNumberWhenStore
-                        # Store the displaced atom index
-                            push!(simulator.displacedAtoms, target.index)
-                        end
                     else
                         Stop!(target, simulator)
                     end
                 else
                     if target.latticePointIndex != -1   
                         SetEnergy!(target, 0.0)
-                        DisplaceAtom(target, simulator.latticePoints[target.latticePointIndex].coordinate, simulator)
+                        DisplaceAtom!(target, simulator.latticePoints[target.latticePointIndex].coordinate, simulator)
                     end
                 end 
             end
-            if pAtom.energy > simulator.constants.stopEnergy
+            if pAtom.energy > simulator.constants.stopEnergy   
                 push!(nextPAtoms, pAtom)
             else
-                Stop!(pAtom, simulator)
+                cell = simulator.cellGrid.cells[pAtom.cellIndex[1], pAtom.cellIndex[2], pAtom.cellIndex[3]]
+                neighbors = GetAllNeighbors(cell, simulator)
+                hasNonPNeighbor = false
+                for neighbor in neighbors   # should change to a new function by computing distance # debug
+                    if !(neighbor in pAtoms)
+                        hasNonPNeighbor = true
+                        pAtom.lastTargets = Vector{Int64}()
+                        Stop!(pAtom, simulator)
+                        break
+                    end
+                end
+                if !hasNonPNeighbor     
+                    push!(nextPAtoms, pAtom)
+                end
             end
         end
         nStep += 1
@@ -180,11 +210,11 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
                 EmptyP!(target)
             end
         end 
-        if isDumpInCascade
-            Dump(simulator, dumpName, nStep, true)
+        if simulator.isDumpInCascade
+            Dump(simulator, simulator.dumpName, nStep, true)
         end
-        if isLog
-            println(nStep)
+        if simulator.isLog
+            println("Collision times: ", nStep)
         end
         if length(nextPAtoms) > 0
             pAtoms = nextPAtoms
@@ -225,3 +255,4 @@ function UniqueTargets!(targetsList::Vector{Vector{Atom}}, pAtoms::Vector{Atom})
         end
     end
 end
+

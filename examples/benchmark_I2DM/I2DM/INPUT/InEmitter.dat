@@ -1,0 +1,10 @@
+#####EMITTER_INFORMATION#####
+SHAPE = .C.        #circular 
+#####ION_INFORMATION#####
+NAME =  Ne       
+CHARGE =  10      #e
+MASS = 20         #Mu
+ENERGY = 1000  
+FLUX = 300        #1E12 ions/cm2
+SANGLE = 0        #°
+PANGLE = 0        #°
