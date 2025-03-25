@@ -1,5 +1,3 @@
-using JSON
-
 function Dump(simulator::Simulator, filename::String, step::Int64, isAppend::Bool=false)
     if !simulator.isOrthogonal        
         error("The box is not orthogonal, please use the orthogonal box.")

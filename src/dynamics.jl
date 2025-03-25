@@ -124,6 +124,7 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
 
 
     SetEnergy!(atom_p, atom_p.energy - (sumE_t + sum(QList)) * η)
+
     momentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
 
 

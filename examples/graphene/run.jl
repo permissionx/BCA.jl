@@ -2,7 +2,9 @@ include("../../src/bca.jl")
 
 
 using Random
-using Profile
+using Profile, ProfileView
+using BenchmarkTools
+
 include("modules.jl")
 # Box
 a = 1.39667
@@ -43,18 +45,16 @@ Save!(simulator)
 
 Random.seed!(42)
 #Dump(simulator, "run.dump",0,false)
+
 open("p.debug.log", "w") do f
     write(f, "nrun,ntargets,px0,py0,pz0,px1,py1,pz1\n")
 end
 
-Dump(simulator, "test", 1, false)
 
-Profile.clear()
-@profile begin
-for i in 1:1000
-    if i % 100 == 0
-        println("Irradiation time: ", i)
-    end
+function Irradiation(simulator::Simulator)
+    #if i % 100 == 0
+        #println("Irradiation time: ", i)
+    #end
     simulator.nIrradiation += 1
     ionPosition = RandomPointInCircle(10.) + [20., 24., 20.]
     ion = Atom(2, ionPosition, parameters)
@@ -64,7 +64,15 @@ for i in 1:1000
     Cascade!(ion, simulator)
     Restore!(simulator)
 end
+
+@time begin
+    for i in 1:10000
+        if i%100 == 0
+            println(i)
+        end
+        Irradiation(simulator)
+    end
 end
-Profile.print(format=:flat) 
+
 
 

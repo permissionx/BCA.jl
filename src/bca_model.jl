@@ -53,7 +53,7 @@ end
 
 function Integrate_g_θ(p_squared::Float64, E_r::Float64, type_p::Int64, type_t::Int64, rStart::Float64, constantsByType::ConstantsByType)
     result = quadgk(r -> 1 / (r * r * g(r, p_squared, E_r, type_p, type_t, constantsByType)),
-        rStart, rStart+10000,
+        rStart, rStart+1000,
         rtol=1e-8)[1]
     return result
 end
