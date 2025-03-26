@@ -446,34 +446,27 @@ end
 
 function Recover!(atom::Atom, simulator::Simulator)
     nearestVacancyIndex = GetNeighborVacancy(atom, simulator)
+    if atom.index != nearestVacancyIndex
+        AddToStore!(atom, simulator)
+    end
     if nearestVacancyIndex != -1
         SetOnLatticePoint!(atom, simulator.latticePoints[nearestVacancyIndex], simulator)
-    else
-        atom.latticePointIndex = -1
-        AddToStore!(atom, simulator)
     end
 end
 
 
 
-
 function SetOnLatticePoint!(atom::Atom, latticePoint::LatticePoint, simulator::Simulator)
-    if atom.latticePointIndex != latticePoint.index  # changed lattice point 
-        if atom.index == latticePoint.index 
-            DeleteFromStore!(atom, simulator)
-        elseif atom.latticePointIndex == atom.index
-            AddToStore!(atom, simulator)
-        end
-        latticePoint.atomIndex = atom.index
-        atom.latticePointIndex = latticePoint.index
-        atom.coordinate = latticePoint.coordinate[:]
-        if atom.cellIndex != latticePoint.cellIndex
-            ChangeCell!(atom, latticePoint.cellIndex, simulator)
-        end
-    else 
-        atom.coordinate = latticePoint.coordinate[:]
-        latticePoint.atomIndex = atom.index
-    end
+    latticePoint.atomIndex = atom.index
+    atom.latticePointIndex = latticePoint.index
+    atom.coordinate = latticePoint.coordinate[:]
+    if atom.isAlive && atom.cellIndex != latticePoint.cellIndex
+        ChangeCell!(atom, latticePoint.cellIndex, simulator)
+    elseif !atom.isAlive
+        atom.isAlive = true
+        nextCell = simulator.cellGrid.cells[latticePoint.cellIndex[1], latticePoint.cellIndex[2], latticePoint.cellIndex[3]]
+        push!(nextCell, atom, simulator)
+    end 
 end
 
 
@@ -490,22 +483,17 @@ function DeleteFromStore!(atom::Atom, simulator::Simulator)
 end 
 
 function Restore!(simulator::Simulator)
-    if length(simulator.displacedAtoms) != length(Set(simulator.displacedAtoms))
-        error("repeat atom index in displacedAtoms")
-    end 
-    for index in simulator.displacedAtoms
+    for atom in simulator.atoms[simulator.atomNumberWhenStore+1:end]
+        # Delete ions remained in the system from their cells.
+        # Ions in simulator.atoms will be deleted latter by setting atom.coordinate = latticePoint.coordinate[:]. 
+        if atom.isAlive
+            delete!(simulator.cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]], atom.index, simulator)
+        end
+    end
+    for index in Set(simulator.displacedAtoms)
         atom = simulator.atoms[index]
         latticePoint = simulator.latticePoints[atom.index]
-        atom.latticePointIndex = atom.index
-        latticePoint.atomIndex = atom.index
-        atom.coordinate = latticePoint.coordinate[:]
-        if atom.isAlive
-            ChangeCell!(atom, latticePoint.cellIndex, simulator)
-        else
-            atom.isAlive = true
-            nextCell = simulator.cellGrid.cells[latticePoint.cellIndex[1], latticePoint.cellIndex[2], latticePoint.cellIndex[3]]
-            push!(nextCell, atom, simulator)
-        end
+        SetOnLatticePoint!(atom, latticePoint, simulator)
     end
     maxAtomID = simulator.atomNumberWhenStore
     simulator.atoms = simulator.atoms[1:maxAtomID]

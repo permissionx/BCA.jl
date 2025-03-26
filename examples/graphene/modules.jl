@@ -13,3 +13,45 @@ function RandomPointInCircle(radius::Float64=3.0)
     y = r * sin(θ)
     return [x, y, 0.0]
 end  
+
+function CheckLatticePoint(simulator::Simulator)
+    for i in 1:simulator.numberOfAtoms
+        flag1 = simulator.atoms[i].latticePointIndex == simulator.latticePoints[i].atomIndex
+        flag2 = i == simulator.atoms[i].latticePointIndex
+        if !(flag1 && flag2)
+            error("error: ", i, flag1, flag2)
+        end
+    end
+end
+
+
+function CheckCellDensity(simulator::Simulator)
+    volume = simulator.cellGrid.cellVolume
+    cells = simulator.cellGrid.cells
+    for cell in cells
+        density = length(cell.atoms) / volume
+        if cell.atomicDensity != density
+            error("error: ", cell.atomicDensity, density)
+        end
+    end
+end
+
+function CompareCellAtoms(simulator::Simulator, reference::Simulator, i::Int64)
+    cells = simulator.cellGrid.cells
+    referenceCells = reference.cellGrid.cells
+    error_cell = Vector{Vector{Int64}}()
+    error_ref = Vector{Vector{Int64}}()
+    flag = true
+    for (cell,refCell) in zip(cells, referenceCells)
+        flag1 = Set(cell.atoms) == Set(refCell.atoms)
+        if !flag1
+            push!(error_cell, cell.atoms)
+            push!(error_ref, refCell.atoms) 
+            flag = false
+        end
+    end
+    if !flag
+        error("error: $(error_cell) $(error_ref) $(i)")
+    end
+end
+

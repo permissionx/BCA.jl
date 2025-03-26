@@ -65,15 +65,19 @@ function Irradiation(simulator::Simulator)
     Restore!(simulator)
 end
 
-@time begin
-    for i in 1:10000
-        if i%100 == 0
-            println(i)
-        end
-        Irradiation(simulator)
-    end
-end
 
+
+
+#reference = deepcopy(simulator)
+
+for i in 1:10000
+    if i%100 == 0
+        println(i)
+    end
+    Irradiation(simulator)
+    #CompareCellAtoms(simulator, reference, i)
+    #CheckLatticePoint(simulator)
+end
 
 
 # need to check the cell density
