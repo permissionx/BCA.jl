@@ -91,7 +91,6 @@ struct Constants
     vacancyRecoverDistance_squared::Float64
     pLMax::Float64
 
-    dumpName::String
     isDumpInCascade::Bool
     isLog::Bool
 end
@@ -119,9 +118,7 @@ mutable struct Simulator
     nIrradiation::Int64
 
     isDumpInCascade::Bool
-    dumpName::String
     isLog::Bool
-
 end
 
 
@@ -131,7 +128,6 @@ struct Parameters
     vacancyRecoverDistance_squared::Float64
     pLMax::Float64
 
-    dumpName::String
     isDumpInCascade::Bool
     isLog::Bool
 

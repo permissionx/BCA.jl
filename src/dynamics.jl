@@ -68,10 +68,6 @@ end
 
 
 function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
-    println(atom_p)
-    println()
-    [println(atom_t) for atom_t in atoms_t]
-    println()
     N_t = length(atoms_t)
     cellGrid = simulator.cellGrid
     tanφList = Vector{Float64}(undef, N_t)
@@ -138,20 +134,17 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     SetEnergy!(atom_p, atom_p.energy - (sumE_t + sum(QList)) * η)
 
 
-    println(atom_p)
-    println()
-    [println(atom_t) for atom_t in atoms_t]
-    println()
+
 
     # Check momentum conservation 
-    # afterMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
-    # for i in 1:length(atoms_t)
-    #     afterMomentum += sqrt(2 * atoms_t[i].mass * E_tList[i]) * atoms_t[i].velocityDirection  # debug
-    # end
-    # open("p.debug.log", "a") do f
-    #     write(f, "$(simulator.nIrradiation),$(N_t),$(initMomentum[1]),$(initMomentum[2]),$(initMomentum[3]),$(afterMomentum[1]),$(afterMomentum[2]),$(afterMomentum[3])\n")
-    # end
-    exit()
+    afterMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
+    for i in 1:length(atoms_t)
+        afterMomentum += sqrt(2 * atoms_t[i].mass * E_tList[i]) * atoms_t[i].velocityDirection  # debug
+    end
+    open("p.debug.log", "a") do f
+        write(f, "$(simulator.nIrradiation),$(N_t),$(initMomentum[1]),$(initMomentum[2]),$(initMomentum[3]),$(afterMomentum[1]),$(afterMomentum[2]),$(afterMomentum[3])\n")
+    end
+    #exit()
 end 
 
 
@@ -161,7 +154,7 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
     pAtoms = Vector{Atom}([atom_p])
     nStep = 1
     if simulator.isDumpInCascade
-        Dump(simulator, simulator.dumpName, nStep, false)
+        Dump(simulator, "Cascade_$(simulator.nIrradiation).dump", nStep, false)
     end
     while true
         targetsList = Vector{Vector{Atom}}()
@@ -212,7 +205,7 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
             end
         end 
         if simulator.isDumpInCascade
-            Dump(simulator, simulator.dumpName, nStep, true)
+            Dump(simulator, "Cascade_$(simulator.nIrradiation).dump", nStep, true)
         end
         if simulator.isLog
             println("Collision times: ", nStep)

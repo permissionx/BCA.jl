@@ -2,8 +2,6 @@ include("../../src/bca.jl")
 
 
 using Random
-using Profile, ProfileView
-using BenchmarkTools
 
 include("modules.jl")
 # Box
@@ -37,7 +35,7 @@ typeDict = Dict(
 # Initialize
 parameters = Parameters(pMax, stopEnergy, vacancyRecoverDistance_squared, 
                         pLMax, 
-                        dumpName, isDumpInCascade, isLog, 
+                        isDumpInCascade, isLog, 
                         typeDict)
 
 simulator = Simulator(primaryVectors, boxSizes, inputGridVectors, periodic, latticeRanges, basis, basisTypes, parameters)  

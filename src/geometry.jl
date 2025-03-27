@@ -118,7 +118,7 @@ end
 function InitConstants(parameters::Parameters)
     return Constants(parameters.pMax, parameters.stopEnergy,
                      parameters.vacancyRecoverDistance_squared, parameters.pLMax, 
-                     parameters.dumpName, parameters.isDumpInCascade, parameters.isLog)
+                     parameters.isDumpInCascade, parameters.isLog)
 end
 
 
@@ -164,7 +164,7 @@ function Simulator(box::Box, inputGridVectors::Matrix{Float64}, periodic::Vector
                      box, cellGrid, periodic, box.isOrthogonal, 0, 0, 
                      constantsByType, constants,
                      false, Vector{Int64}(), 0, 0, 
-                     parameters.isDumpInCascade, parameters.dumpName, parameters.isLog)
+                     parameters.isDumpInCascade, parameters.isLog)
 end 
 
 
