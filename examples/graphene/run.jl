@@ -29,8 +29,8 @@ isLog = false
 
 
 typeDict = Dict(
-    1 => (radius = 0.67, mass = 12.0, Z = 6.0, dte =22, bde = 22),  # Carbon
-    2 => (radius = 0.38, mass = 20.0, Z = 10.0, dte = 22, bde = 22) # Neon
+    1 => (radius = 0.67, mass = 12.0, Z = 6.0, dte =22, bde = 22, alpha = 1.0, beta = 0.44),  # Carbon
+    2 => (radius = 0.38, mass = 20.0, Z = 10.0, dte = 22, bde = 22, alpha = 1.0, beta = 0.44) # Neon
 )
 
 
@@ -79,5 +79,3 @@ for i in 1:10000
     #CheckLatticePoint(simulator)
 end
 
-
-# need to check the cell density
