@@ -37,11 +37,11 @@ end
 
 
 function TypeToProperties(type::Int64, 
-    typeDict::Dict{Int, NamedTuple{(:radius, :mass, :Z, :dte, :bde), 
-              Tuple{Float64, Float64, Float64, Float64, Float64}}})
+    typeDict::Dict{Int, NamedTuple{(:radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
+              Tuple{Float64, Float64, Float64, Float64, Float64, Float64, Float64}}})
     if haskey(typeDict, type)
         props = typeDict[type]
-        return props.radius, props.mass, props.Z, props.dte, props.bde
+        return props.radius, props.mass, props.Z, props.dte, props.bde, props.alpha, props.beta 
     else
         error("Unknown atom type: $type")
     end 
@@ -123,8 +123,8 @@ end
 
 
 function InitConstantsByType(typeDict::Dict{Int, 
-                             NamedTuple{(:radius, :mass, :Z, :dte, :bde), 
-                                        Tuple{Float64, Float64, Float64, Float64, Float64}}},
+                             NamedTuple{(:radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
+                                        Tuple{Float64, Float64, Float64, Float64, Float64, Float64, Float64}}},
                              constants::Constants) 
     V_upterm = Dict{Vector{Int64}, Float64}()
     a_U = Dict{Vector{Int64}, Float64}()
@@ -139,13 +139,13 @@ function InitConstantsByType(typeDict::Dict{Int,
     qMax_squared = Dict{Vector{Int64}, Float64}()
     for p in types
         for t in types
-            radius_p, mass_p, Z_p, _, _ = TypeToProperties(p, typeDict)
-            radius_t, _, Z_t, _, _ = TypeToProperties(t, typeDict)
+            radius_p, mass_p, Z_p, _, _, α_p, β_p = TypeToProperties(p, typeDict)
+            radius_t, _, Z_t, _, _, _, _ = TypeToProperties(t, typeDict)
             V_upterm[[p,t]] = BCA.ConstantFunctions.V_upterm(Z_p, Z_t)
             a_U[[p,t]] = BCA.ConstantFunctions.a_U(Z_p, Z_t)
             E_m[p] = BCA.ConstantFunctions.E_m(Z_p, mass_p)
-            S_e_upTerm[[p,t]] = BCA.ConstantFunctions.S_e_upTerm(p, Z_p, Z_t, mass_p)
-            x_nl[[p,t]] = BCA.ConstantFunctions.x_nl(p, Z_p, Z_t)
+            S_e_upTerm[[p,t]] = BCA.ConstantFunctions.S_e_upTerm(p, Z_p, Z_t, mass_p, α_p)
+            x_nl[[p,t]] = BCA.ConstantFunctions.x_nl(p, Z_p, Z_t, β_p)
             a[[p,t]] = BCA.ConstantFunctions.a(Z_p, Z_t)
             Q_nl[[p,t]] = BCA.ConstantFunctions.Q_nl(Z_p, Z_t, constants.pMax)
             Q_loc[[p,t]] = BCA.ConstantFunctions.Q_loc(Z_p, Z_t)

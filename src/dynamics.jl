@@ -68,6 +68,10 @@ end
 
 
 function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
+    println(atom_p)
+    println()
+    [println(atom_t) for atom_t in atoms_t]
+    println()
     N_t = length(atoms_t)
     cellGrid = simulator.cellGrid
     tanφList = Vector{Float64}(undef, N_t)
@@ -91,11 +95,11 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
         tanφList[i], tanψList[i], E_tList[i], x_pList[i], x_tList[i], QList[i] = CollisionParams(
             atom_p.energy, atom_p.mass, atom_t.mass, atom_p.type, atom_t.type, p, pL, N, simulator.constantsByType)
         # debug: turn off the inelastic collision
-        QList[i] = 0.0
         #println("DEBUG:\n tanφ: $(tanφList[i])\n tanψ: $(tanψList[i])\n E_t: $(E_tList[i])\n x_p: $(x_pList[i])\n x_t: $(x_tList[i])\n Q: $(QList[i])")
     end
     sumE_t = sum(E_tList)
     η = N_t * atom_p.energy / (N_t * atom_p.energy + (N_t - 1) * sumE_t)
+    E_tList *= η
     # Update atoms_t (target atoms)         
     avePPoint = Vector{Float64}([0.0,0.0,0.0])
     momentum = Vector{Float64}([0.0,0.0,0.0])
@@ -110,7 +114,7 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
             SetEnergy!(atom_t, E_tList[i] - GetBDE(atom_t, simulator))
             tCoordinate = atom_t.coordinate + x_tList[i] * η * atom_p.velocityDirection
             DisplaceAtom!(atom_t, tCoordinate, simulator)  
-            SetEnergy!(atom_t, E_tList[i] * η)
+            SetEnergy!(atom_t, E_tList[i])
             if atom_t.latticePointIndex != -1
                 simulator.latticePoints[atom_t.latticePointIndex].atomIndex = -1
                 atom_t.latticePointIndex = -1
@@ -122,7 +126,7 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
         momentum += sqrt(2 * atom_t.mass * E_tList[i]) * atom_t.velocityDirection
     end
     # Update atom_p
-    initMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection   # Check momentum conservation 
+    # initMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection   # Check momentum conservation 
 
     avePPoint /= N_t
     x_p = η * sum(x_pList)
@@ -134,14 +138,20 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     SetEnergy!(atom_p, atom_p.energy - (sumE_t + sum(QList)) * η)
 
 
+    println(atom_p)
+    println()
+    [println(atom_t) for atom_t in atoms_t]
+    println()
+
     # Check momentum conservation 
-    afterMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
-    for i in length(atoms_t)
-        afterMomentum += sqrt(2 * atoms_t[i].mass * E_tList[i]) * atoms_t[i].velocityDirection  # debug
-    end
-    open("p.debug.log", "a") do f
-        write(f, "$(simulator.nIrradiation),$(N_t),$(initMomentum[1]),$(initMomentum[2]),$(initMomentum[3]),$(afterMomentum[1]),$(afterMomentum[2]),$(afterMomentum[3])\n")
-    end
+    # afterMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
+    # for i in 1:length(atoms_t)
+    #     afterMomentum += sqrt(2 * atoms_t[i].mass * E_tList[i]) * atoms_t[i].velocityDirection  # debug
+    # end
+    # open("p.debug.log", "a") do f
+    #     write(f, "$(simulator.nIrradiation),$(N_t),$(initMomentum[1]),$(initMomentum[2]),$(initMomentum[3]),$(afterMomentum[1]),$(afterMomentum[2]),$(afterMomentum[3])\n")
+    # end
+    exit()
 end 
 
 

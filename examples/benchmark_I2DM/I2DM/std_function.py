@@ -88,6 +88,7 @@ def get_Se(q1,q2,m1,E,alpha) -> float:
     k_LS = 1.212*q1**(7/6)*q2/((q1**(2/3)+q2**(2/3))**1.5*m1**0.5)
     p = E/Em
     factor = 1/((p/(math.log(p+1/p-2+math.e)))**(1.425/2)+(1/p)**(1.425/2))**(1/1.425)
+    #print("Em: ", Em, "\n", "k_LS: ", k_LS, "\n", "factor: ", factor)
     return alpha * k_LS * factor * Em**0.5
 def electron_energy_loss(q1,q2,m1,m2,E,p,a0,N,alpha,beta):
     #Nonlocal part
@@ -95,9 +96,11 @@ def electron_energy_loss(q1,q2,m1,m2,E,p,a0,N,alpha,beta):
     x_loc = 1- x_nl
     Se = get_Se(q1,q2,m1,E,alpha)
     pmax = a0/2
+    #print("pmax: ", pmax)
     a = 1.45*screen_length(q1,q2)/(0.3*q1**0.4)
     nonlocal_part = N*Se*(x_nl+x_loc*(1+pmax/a)*math.exp(-pmax/a))
     local_part = x_loc*Se*math.exp(-p/a)/(2*math.pi*a**2)
+    #print("x_nl: ", x_nl, "\n", "x_loc: ", x_loc, "\n", "Se: ", Se, "\n", "Q_nl: ", nonlocal_part, "\n", "Q_loc: ", local_part)
     return nonlocal_part + local_part
 ####################################
 #   vector and matrices operation  $
@@ -127,7 +130,7 @@ def dis_bet_line_point(origin,direction,point) -> list:
     B = 2*(r[0]*(x[0]-p[0])+r[1]*(x[1]-p[1])+r[2]*(x[2]-p[2]))
     C = (x[0]-p[0])**2+(x[1]-p[1])**2+(x[2]-p[2])**2
     t = -B/(2*A)
-    distance_foot_p = math.sqrt(C-B**2/(4*A))        
+    distance_foot_p = math.sqrt(C-B**2/(4*A))     
     foot = [value+t*v for (value,v) in zip(x,r)]   
     distance_foot_x = dis_bet_points(x,foot)  
     return [t,distance_foot_p,distance_foot_x,foot]

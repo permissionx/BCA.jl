@@ -45,8 +45,18 @@ class MySimulation:
             #step1:produce ion and check its neighbor atoms
             self.current_num += 1
             self.source.create_projectile()
+            self.source.incident_ion.atom_energy = 1000
+            self.source.incident_ion.atom_velocity = [0.,0.,-1.]
+            self.source.incident_ion.atom_position = [15.386099491907107, 19.127032099321863, 5.0]
+            self.target.crystal = self.target.crystal[:4]
+            #self.target.atom_num = 4
+            self.target.crystal[0].atom_position = [16.061705, 18.143275510554176, 0.0]
+            self.target.crystal[1].atom_position = [16.76004, 19.35282721125779, 0.0]
+            self.target.crystal[2].atom_position = [14.665035, 18.143275510554176, 0.0]
+            self.target.crystal[3].atom_position = [13.966700000000001, 19.35282721125779, 0.0]
             self.source.incident_ion.get_land_point(0)
-            find_ion_neighbors = self.target.find_neighbor_atoms_of_given_position(self.primary_neighbor_width,self.source.incident_ion.ion_initial_land_point)           
+            #find_ion_neighbors = self.target.find_neighbor_atoms_of_given_position(self.primary_neighbor_width,self.source.incident_ion.ion_initial_land_point)           
+            find_ion_neighbors = [True,[0,1,2,3]]
             if find_ion_neighbors[0]:
                 self.source.incident_ion.get_neighbor_atom_orders(find_ion_neighbors[1])
             else:
@@ -61,7 +71,14 @@ class MySimulation:
             #print(self.source.incident_ion.atom_velocity)
                 #primary = [True,[order_t],[p],[foot]] or [False]
             while primary[0]:
+                print([self.target.crystal[id].atom_position for id in primary[1]])
+                print(self.source.incident_ion.atom_energy)
+                print(self.source.incident_ion.atom_position)
                 self.collision(self.source.incident_ion,primary[1],primary[2],primary[3])
+                print(self.source.incident_ion.atom_velocity)
+                print([self.target.crystal[id].atom_velocity for id in primary[1]])
+                print([self.target.crystal[id].atom_energy for id in primary[1]])
+                exit()
                 #print(f"primary:")
                 #print(f"ion:{self.source.incident_ion.atom_energy}\t{self.source.incident_ion.atom_velocity}")
                 #print(f"atom{self.target.crystal[primary[1][0]].atom_layer}:{self.target.crystal[primary[1][0]].atom_energy}\t{self.target.crystal[primary[1][0]].atom_velocity}")
@@ -268,6 +285,8 @@ class MySimulation:
             new_vectors_for_i.append(new_vector_for_i)
             new_vectors_for_t.append(new_vector_for_t)
             i+=1
+            #print(f"Er: {Er}\ntheta: {theta}\ntau: {tao}\n tanphi: {math.tan(phi)}\ntan_psi: {math.tan(psi)}\nte: {T_e}\nx1: {x1}\nx2: {x2}\nQ: {Q}")  #debug 
+            #print("\n")
         #2.change atoms states
         Ttot = sum(Ts)
         beta = num_t*atom_i.atom_energy/(num_t*atom_i.atom_energy+(num_t-1)*Ttot)

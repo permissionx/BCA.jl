@@ -53,7 +53,7 @@ end
 
 function Integrate_g_θ(p_squared::Float64, E_r::Float64, type_p::Int64, type_t::Int64, rStart::Float64, constantsByType::ConstantsByType)
     result = quadgk(r -> 1 / (r * r * g(r, p_squared, E_r, type_p, type_t, constantsByType)),
-        rStart, rStart+1000,
+        rStart, rStart+10000,
         rtol=1e-8)[1]
     return result
 end
@@ -126,7 +126,6 @@ function CollisionParams(energy_p::Float64, mass_p::Float64, mass_t::Float64, ty
     Q_v = QLoss.Q(energy_p, type_p, type_t, E_r_v, p, pL, N, constantsByType)
     #println("E_r: ", E_r_v,"\n", "rStart: ", rStart,"\n", "θ: ", θ_v,"\n","τ: ", τ_v,"\n", "tanφ: ", tanφ_v,"\n", "tanψ: ", tanψ_v,"\n", "E_t: ", E_t_v,"\n", "x_p: ", x_p_v,"\n", "x_t: ", x_t_v,"\n", "Q: ", Q_v)
     #println("\n")
-    #exit()
     return tanφ_v, tanψ_v,  E_t_v, x_p_v, x_t_v, Q_v
 end
 
@@ -137,8 +136,8 @@ using Main: ConstantsByType
 # 
 # constants for different types:
 function S_e(energy_p::Float64, type_p::Int64, type_t::Int64, constantsByType::ConstantsByType)
-    δ_1_2 = Float64(1.1937336386313322) # δ^(1/2)
-    δ_1_2_ = Float64(-1.1937336386313322) # -δ^(1/2)
+    δ_1_2 = Float64(0.7125) # δ^(1/2)
+    δ_1_2_ = Float64(-0.7125) # -δ^(1/2)
     δ_1 = Float64(0.7017543859649122) # 1/δ
     A = energy_p / constantsByType.E_m[type_p]
     termLeftDown = (A / log(A + 1 / A + ℯ - 2))^δ_1_2 
@@ -163,7 +162,7 @@ end
 function Q_nl(type_p::Int64, type_t::Int64, S_e::Float64, x_nl::Float64, x_loc::Float64, pL::Float64, N::Float64, constantsByType::ConstantsByType)
     # constant:  pMax (half of lattice constant)
     termRight = x_nl + x_loc * constantsByType.Q_nl[[type_p, type_t]]
-    return S_e * N * termRight * pL
+    return S_e * N * termRight * pL 
 end 
 
 function Q_loc(type_p::Int64, type_t::Int64, S_e::Float64, x_loc::Float64, p::Float64, constantsByType::ConstantsByType)
@@ -179,6 +178,7 @@ function Q(energy_p::Float64, type_p::Int64, type_t::Int64, E_r::Float64, p::Flo
     x_loc_v = x_loc(x_nl_v)
     Q_nl_v = Q_nl(type_p, type_t, S_e_v, x_nl_v, x_loc_v, pL, N, constantsByType)
     Q_loc_v = Q_loc(type_p, type_t, S_e_v, x_loc_v, p, constantsByType)
+    # println("S_e: ", S_e_v, "\n", "x_nl: ", x_nl_v, "\n", "x_loc: ", x_loc_v, "\n", "Q_nl: ", Q_nl_v, "\n", "Q_loc: ", Q_loc_v)
     return Q_nl_v + Q_loc_v 
 end 
 
@@ -188,13 +188,6 @@ module ConstantFunctions
 using Base.MathConstants
 using ..BCA: qe_squared
 
-function α(type_p::Int64)
-    return 1.0
-end
-
-function β(type_p::Int64)
-    return 0.44
-end
 
 function V_upterm(Z_p::Float64, Z_t::Float64)
     return Z_p * Z_t * qe_squared
@@ -206,18 +199,18 @@ function a_U(Z_p::Float64, Z_t::Float64)
 end
 
 function E_m(Z_p::Float64, mass_p::Float64)
-    v_b_squared = Float64(0.113796)  # square of Bohr velocity, unit: eV need to check carefully
+    v_b_squared = Float64(49708.0)  # square of Bohr velocity, unit: eV/u need to check carefully
     return 0.5 * mass_p * v_b_squared * Z_p^(4/3)
 end
 
-function S_e_upTerm(type_p::Int64,Z_p::Float64, Z_t::Float64, m_p::Float64)
+function S_e_upTerm(type_p::Int64,Z_p::Float64, Z_t::Float64, m_p::Float64, α_p::Float64)
     # In initializations
-    k_LS = 1.212 * Z_p^(7/6) * Z_t / ((Z_p^(3/2) + Z_t^(3/2))^(3/2) * m_p^(1/2))
-    return α(type_p) * k_LS * E_m(Z_p, m_p)
+    k_LS = 1.212 * Z_p^(7/6) * Z_t / ((Z_p^(2/3) + Z_t^(2/3))^(3/2) * m_p^(1/2))
+    return α_p * k_LS * sqrt(E_m(Z_p, m_p))
 end
 
-function x_nl(type_p::Int64, Z_p::Float64, Z_t::Float64)
-    return β(type_p) * (a_U(Z_p, Z_t) / (Z_p * Z_t * qe_squared))^0.075
+function x_nl(type_p::Int64, Z_p::Float64, Z_t::Float64, β_p::Float64)
+    return β_p * (a_U(Z_p, Z_t) / (Z_p * Z_t * qe_squared))^0.075
 end
 
 function a(Z_p::Float64, Z_t::Float64)

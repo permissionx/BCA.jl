@@ -135,6 +135,6 @@ struct Parameters
     isDumpInCascade::Bool
     isLog::Bool
 
-    typeDict::Dict{Int, NamedTuple{(:radius, :mass, :Z, :dte, :bde), Tuple{Float64, Float64, Float64, Float64, Float64}}}
+    typeDict::Dict{Int, NamedTuple{(:radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}
 end
 
