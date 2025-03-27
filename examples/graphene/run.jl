@@ -49,15 +49,15 @@ open("p.debug.log", "w") do f
 end
 
 
-function Irradiation(simulator::Simulator)
+function Irradiation(simulator::Simulator, energy::Float64)
     #if i % 100 == 0
         #println("Irradiation time: ", i)
     #end
     simulator.nIrradiation += 1
-    ionPosition = RandomPointInCircle(10.) + [20., 24., 20.]
+    ionPosition = RandomInAnUnitGrapheneCell(1.39667) + [18.855045, 22.981482313368623, 16.75]
     ion = Atom(2, ionPosition, parameters)
-    SetVelocityDirection!(ion, [0.0,0.0,-1.0])
-    SetEnergy!(ion, 1000.0)
+    SetVelocityDirection!(ion, [0.0, 0.0, -1.0])
+    SetEnergy!(ion,energy)
     push!(simulator, ion)
     Cascade!(ion, simulator)
     Restore!(simulator)
@@ -65,15 +65,27 @@ end
 
 
 
-
-#reference = deepcopy(simulator)
-
-for i in 1:10000
-    if i%100 == 0
-        println(i)
+vacancy_data = Dict{Int64, Vector{Int64}}()
+for energy_order in 0:20
+    energy = 2.0^energy_order
+    vacancy_data[energy_order] = Vector{Int64}(undef, 10000)
+    for i in 1:10000
+        if i%1000 == 0
+            println(energy_order, " ", i)
+        end
+        Irradiation(simulator, energy)
+        nVacancies = CountVacancies(simulator)
+        vacancy_data[energy_order][i] = nVacancies
     end
-    Irradiation(simulator)
-    #CompareCellAtoms(simulator, reference, i)
-    #CheckLatticePoint(simulator)
+end
+
+println("Outputting data...")
+open("vacancy.csv", "w") do f
+    write(f, "energy_order,energy,nVacancies\n")
+    for energy_order in keys(vacancy_data)
+        for nVacancies in vacancy_data[energy_order]
+            write(f, "$(energy_order),$(2^energy_order),$(nVacancies)\n")
+        end
+    end
 end
 

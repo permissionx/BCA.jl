@@ -5,6 +5,7 @@ include("bca_model.jl")  # In namespace BCA: BCA->(QLoss, Constants)
 include("io.jl")
 include("geometry.jl")
 include("dynamics.jl")
+include("defect_statics.jl")
 
 
 # modules

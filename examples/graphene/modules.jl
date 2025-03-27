@@ -14,6 +14,17 @@ function RandomPointInCircle(radius::Float64=3.0)
     return [x, y, 0.0]
 end  
 
+function RandomInAnUnitGrapheneCell(a::Float64)
+    X = a * 3
+    Y = sqrt(3) * a
+    x = rand() * X
+    y = rand() * Y
+    return [x, y, 0.0]
+end  
+
+
+
+
 function CheckLatticePoint(simulator::Simulator)
     for i in 1:simulator.numberOfAtoms
         flag1 = simulator.atoms[i].latticePointIndex == simulator.latticePoints[i].atomIndex
