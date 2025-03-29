@@ -1,2 +1,28 @@
 {
+    "workbench.colorCustomizations": {
+        "terminal.background": "#0B1C2C",
+        "terminal.ansiBlack": "#0B1C2C",
+        "terminal.ansiBlue": "#8B56BF",
+        "terminal.ansiBrightBlack": "#627E99",
+        "terminal.ansiBrightBlue": "#8B56BF",
+        "terminal.ansiBrightCyan": "#568BBF",
+        "terminal.ansiBrightGreen": "#56BF8B",
+        "terminal.ansiBrightPurple": "#C792EA",
+        "terminal.ansiBrightRed": "#BF8B56",
+        "terminal.ansiBrightWhite": "#F7F9FB",
+        "terminal.ansiBrightYellow": "#8BBF56",
+        "terminal.ansiCyan": "#568BBF",
+        "terminal.foreground": "#CBD6E2",
+        "terminal.ansiGreen": "#56BF8B",
+        "terminal.ansiPurple": "#C792EA",
+        "terminal.ansiRed": "#BF8B56",
+        "terminal.selectionBackground": "#EEFFFF",
+        "terminal.ansiWhite": "#CBD6E2",
+        "terminal.ansiYellow": "#8BBF56",
+        "[Material Theme Darker High Contrast]": {},
+        "terminalCursor.background": "#CBD6E2",
+        "terminalCursor.foreground": "#CBD6E2",
+        "terminal.ansiBrightMagenta": "#BF568B",
+        "terminal.ansiMagenta": "#BF568B"
+    }
 }

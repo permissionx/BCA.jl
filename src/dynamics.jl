@@ -137,13 +137,13 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
 
 
     # Check momentum conservation 
-    afterMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
-    for i in 1:length(atoms_t)
-        afterMomentum += sqrt(2 * atoms_t[i].mass * E_tList[i]) * atoms_t[i].velocityDirection  # debug
-    end
-    open("p.debug.log", "a") do f
-        write(f, "$(simulator.nIrradiation),$(N_t),$(initMomentum[1]),$(initMomentum[2]),$(initMomentum[3]),$(afterMomentum[1]),$(afterMomentum[2]),$(afterMomentum[3])\n")
-    end
+    #afterMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection
+    #for i in 1:length(atoms_t)
+    #    afterMomentum += sqrt(2 * atoms_t[i].mass * E_tList[i]) * atoms_t[i].velocityDirection  # debug
+    #end
+    #open("p.debug.log", "a") do f
+    #    write(f, "$(simulator.nIrradiation),$(N_t),$(initMomentum[1]),$(initMomentum[2]),$(initMomentum[3]),$(afterMomentum[1]),$(afterMomentum[2]),$(afterMomentum[3])\n")
+    #end
     #exit()
 end 
 

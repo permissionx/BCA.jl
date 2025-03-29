@@ -16,9 +16,10 @@ latticeRanges = [0 10; 0 20; 5 6]
 basis = [0.0 0.0 0.0; 1.0/3.0 0.0 0.0; 1.0/2.0 1.0/2.0 0.0; 5.0/6.0 1.0/2.0 0.0]
 basisTypes = [1, 1, 1, 1]
 
+
 # Parameters
 pMax = 1.45
-stopEnergy = 1
+stopEnergy = 10
 vacancyRecoverDistance_squared = 1.3
 pLMax = 2.0
 dumpName = "graphene.dump"
@@ -49,40 +50,42 @@ open("p.debug.log", "w") do f
 end
 
 
-function Irradiation(simulator::Simulator, energy::Float64)
+function Irradiation(simulator::Simulator, energy::Float64, vacancyNumbers::Vector{Int64}, i::Int64)
     #if i % 100 == 0
         #println("Irradiation time: ", i)
     #end
     simulator.nIrradiation += 1
-    ionPosition = RandomInAnUnitGrapheneCell(1.39667) + [18.855045, 22.981482313368623, 16.75]
+    ionPosition = RandomInAnUnitGrapheneCell(1.39667) + [18.855045, 22.981482313368623, 20]
     ion = Atom(2, ionPosition, parameters)
     SetVelocityDirection!(ion, [0.0, 0.0, -1.0])
     SetEnergy!(ion,energy)
     push!(simulator, ion)
     Cascade!(ion, simulator)
+    nVacancies = CountVacancies(simulator)
+    vacancyNumbers[i] = nVacancies
     Restore!(simulator)
 end
 
 
-
+computerNumberPerEnergy = 100000
 vacancy_data = Dict{Int64, Vector{Int64}}()
-for energy_order in 0:20
-    energy = 2.0^energy_order
-    vacancy_data[energy_order] = Vector{Int64}(undef, 10000)
-    for i in 1:10000
-        if i%1000 == 0
+for energy_order in 0:65
+    energy = 10*1.3^energy_order
+    vacancyNumbers = Vector{Int64}(undef, computerNumberPerEnergy)
+    for i in 1:computerNumberPerEnergy
+        if i%10000 == 0
             println(energy_order, " ", i)
         end
-        Irradiation(simulator, energy)
-        nVacancies = CountVacancies(simulator)
-        vacancy_data[energy_order][i] = nVacancies
+        Irradiation(simulator, energy, vacancyNumbers, i)
     end
+    vacancy_data[energy_orde]
 end
+
 
 println("Outputting data...")
 open("vacancy.csv", "w") do f
     write(f, "energy_order,energy,nVacancies\n")
-    for energy_order in keys(vacancy_data)
+    for energy_order in sort(collect(keys(vacancy_data)))
         for nVacancies in vacancy_data[energy_order]
             write(f, "$(energy_order),$(2^energy_order),$(nVacancies)\n")
         end
