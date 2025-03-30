@@ -6,7 +6,7 @@ function ShotTarget(atom::Atom, simulator::Simulator)
     cell = cellGrid.cells[atom.cellIndex[1], atom.cellIndex[2], atom.cellIndex[3]]
     accCrossFlag = Vector{Int64}([0,0,0])
     while true
-        targets = GetTargetsFromNeighbor(atom, cell, simulator)
+        (targets, isInfinity) = GetTargetsFromNeighbor(atom, cell, simulator)
         # delete repeated targets in lastTargets
         filter!(t->!(t.index in atom.lastTargets), targets)
         if length(targets) > 0
@@ -20,13 +20,11 @@ function ShotTarget(atom::Atom, simulator::Simulator)
             neighborIndex[dimension] = direction == 1 ? -1 : 1
             neighborInfo = cell.neighborCellsInfo[neighborIndex]
             accCrossFlag += neighborInfo.cross
-            if !periodic[dimension]
-                if neighborInfo.cross[dimension] != 0
-                    for cell in cellGrid.cells
-                        cell.isExplored = false
-                    end
-                    return Vector{Atom}() # means find nothing  
+            if (neighborInfo.cross[dimension] != 0 && !periodic[dimension]) || isInfinity
+                for cell in cellGrid.cells
+                    cell.isExplored = false
                 end
+                return Vector{Atom}() # means find nothing  
             end 
             index = neighborInfo.index
             cell = cellGrid.cells[index[1], index[2], index[3]]
@@ -115,12 +113,13 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
                 simulator.latticePoints[atom_t.latticePointIndex].atomIndex = -1
                 atom_t.latticePointIndex = -1
             end     
-        else
+        else 
             SetEnergy!(atom_t, 0.0)
         end
         avePPoint += atom_t.pPoint[atom_p.index]
         momentum += sqrt(2 * atom_t.mass * E_tList[i]) * atom_t.velocityDirection
     end
+
     # Update atom_p
     # initMomentum = sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection   # Check momentum conservation 
 
@@ -169,6 +168,7 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
         nextPAtoms = Vector{Atom}()
         for (pAtom, targets) in zip(pAtoms, targetsList)
             if length(targets) == 0.0
+                pAtom.lastTargets = Vector{Int64}()
                 delete!(simulator, pAtom)
                 continue
             end
@@ -182,6 +182,7 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
             if pAtom.energy > simulator.constants.stopEnergy   
                 push!(nextPAtoms, pAtom)
             else
+                pAtom.lastTargets = Vector{Int64}()
                 Stop!(pAtom, simulator)
                 #cell = simulator.cellGrid.cells[pAtom.cellIndex[1], pAtom.cellIndex[2], pAtom.cellIndex[3]]
                 #neighbors = GetAllNeighbors(cell, simulator)

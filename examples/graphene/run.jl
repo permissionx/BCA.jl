@@ -28,8 +28,8 @@ isLog = false
 
 
 typeDict = Dict(
-    1 => Element("C"),  # Carbon
-    2 => Element("Ne") # Neon
+    1 => Element("C", 22.0, 22.0),  # Carbon
+    2 => Element("Ne", 20.0, 20.0) # Neon
 )
 
 
@@ -46,9 +46,7 @@ Save!(simulator)
 Random.seed!(42)
 #Dump(simulator, "run.dump",0,false)
 
-open("p.debug.log", "w") do f
-    write(f, "nrun,ntargets,px0,py0,pz0,px1,py1,pz1\n")
-end
+
 
 
 function Irradiation(simulator::Simulator, energy::Float64, vacancyNumbers::Vector{Int64}, i::Int64)

@@ -33,3 +33,9 @@ function Dump(simulator::Simulator, filename::String, step::Int64, isAppend::Boo
     end
 end
 
+function log(string::String)
+    open("bca.log", "a") do file
+        write(file, string)
+    end
+end
+

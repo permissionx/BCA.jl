@@ -368,9 +368,9 @@ function GetTargetsFromNeighbor(atom::Atom, gridCell::GridCell, simulator::Simul
         neighborCell.isExplored = true
     end
     if infiniteFlag
-        error("Atom$(atom.index) fly inifinitely")
+        log("Infinitely fly atom in the $(simulator.nIrradiation)th irradiation:\n$(atom)\n")
     end
-    return targets
+    return (targets, infiniteFlag)
 end
 
 function DeleteP!(atom_t::Atom, atom_pIndex::Int64)
@@ -511,3 +511,4 @@ function Save!(simulator::Simulator)
     simulator.isStore = true
     simulator.atomNumberWhenStore = simulator.numberOfAtoms
 end 
+
