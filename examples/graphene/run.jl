@@ -28,8 +28,8 @@ isLog = false
 
 
 typeDict = Dict(
-    1 => (radius = 0.67, mass = 12.0, Z = 6.0, dte =22, bde = 22, alpha = 1.0, beta = 0.44),  # Carbon
-    2 => (radius = 0.38, mass = 20.0, Z = 10.0, dte = 22, bde = 22, alpha = 1.0, beta = 0.44) # Neon
+    1 => Element("C"),  # Carbon
+    2 => Element("Ne") # Neon
 )
 
 
@@ -39,6 +39,7 @@ parameters = Parameters(pMax, stopEnergy, vacancyRecoverDistance_squared,
                         isDumpInCascade, isLog, 
                         typeDict)
 
+                        
 simulator = Simulator(primaryVectors, boxSizes, inputGridVectors, periodic, latticeRanges, basis, basisTypes, parameters)  
 Save!(simulator)
 

@@ -130,7 +130,7 @@ function Collision!(atom_p::Atom, atoms_t::Vector{Atom}, simulator::Simulator)
     DisplaceAtom!(atom_p, pCoordinate, simulator)
     velocity = (sqrt(2 * atom_p.mass * atom_p.energy) * atom_p.velocityDirection - momentum)  / atom_p.mass
     SetVelocityDirection!(atom_p, velocity)
-
+    
     SetEnergy!(atom_p, atom_p.energy - (sumE_t + sum(QList)) * η)
 
 
@@ -182,20 +182,21 @@ function Cascade!(atom_p::Atom, simulator::Simulator)
             if pAtom.energy > simulator.constants.stopEnergy   
                 push!(nextPAtoms, pAtom)
             else
-                cell = simulator.cellGrid.cells[pAtom.cellIndex[1], pAtom.cellIndex[2], pAtom.cellIndex[3]]
-                neighbors = GetAllNeighbors(cell, simulator)
-                hasNonPNeighbor = false
-                for neighbor in neighbors   # should change to a new function by computing distance # debug
-                    if !(neighbor in pAtoms)
-                        hasNonPNeighbor = true
-                        pAtom.lastTargets = Vector{Int64}()
-                        Stop!(pAtom, simulator)
-                        break
-                    end
-                end
-                if !hasNonPNeighbor     
-                    push!(nextPAtoms, pAtom)
-                end
+                Stop!(pAtom, simulator)
+                #cell = simulator.cellGrid.cells[pAtom.cellIndex[1], pAtom.cellIndex[2], pAtom.cellIndex[3]]
+                #neighbors = GetAllNeighbors(cell, simulator)
+                #hasNonPNeighbor = false
+                #for neighbor in neighbors   # should change to a new function by computing distance # debug
+                #    if !(neighbor in pAtoms)
+                #        hasNonPNeighbor = true
+                #        pAtom.lastTargets = Vector{Int64}()
+                #        Stop!(pAtom, simulator)
+                #        break
+                #    end
+                #end
+                #if !hasNonPNeighbor  
+                #    push!(nextPAtoms, pAtom)
+                #end
             end
         end
         nStep += 1

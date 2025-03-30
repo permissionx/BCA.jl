@@ -1,4 +1,5 @@
 using LinearAlgebra
+using PeriodicTable
 import Base: push!
 include("types.jl")
 include("bca_model.jl")  # In namespace BCA: BCA->(QLoss, Constants)
@@ -6,6 +7,7 @@ include("io.jl")
 include("geometry.jl")
 include("dynamics.jl")
 include("defect_statics.jl")
+include("elements.jl")
 
 
 # modules
