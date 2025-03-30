@@ -119,6 +119,9 @@ mutable struct Simulator
 
     isDumpInCascade::Bool
     isLog::Bool
+
+    θFunctions::Dict{Vector{Int64}, Function}
+    τFunctions::Dict{Vector{Int64}, Function}
 end
 
 

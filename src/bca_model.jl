@@ -101,8 +101,20 @@ function x_t(p::Float64, θ::Float64, x_p::Float64)
     return p * tan(θ / 2) - x_p
 end
 
+function θandτ(energy_p::Float64, mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64,
+    p::Float64, constantsByType::ConstantsByType)
+    p_squared = p * p
+    E_r_v = E_r(energy_p, mass_p, mass_t)
+    rStart = FindTurningPoint(p_squared, E_r_v, type_p, type_t, p, constantsByType)
+    θ_v = θ(p, p_squared, E_r_v, type_p, type_t, rStart, constantsByType)
+    τ_v = τ(p_squared, type_p, type_t, E_r_v, rStart, constantsByType)
+    return θ_v, τ_v
+end
+
+
 function CollisionParams(energy_p::Float64, mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64,
-                         p::Float64, pL::Float64, N::Float64, constantsByType::ConstantsByType)
+                         p::Float64, pL::Float64, N::Float64, constantsByType::ConstantsByType,
+                         θFunction::Function, τFunction::Function)
     #=
     energy_p = 100.0
     mass_p = 4.0
@@ -113,11 +125,13 @@ function CollisionParams(energy_p::Float64, mass_p::Float64, mass_t::Float64, ty
     pL = 1.0
     N = 1.0
     =#
-    p_squared = p * p
+    #p_squared = p * p
     E_r_v = E_r(energy_p, mass_p, mass_t)
-    rStart = FindTurningPoint(p_squared, E_r_v, type_p, type_t, p, constantsByType)
-    θ_v = θ(p, p_squared, E_r_v, type_p, type_t, rStart, constantsByType)
-    τ_v = τ(p_squared, type_p, type_t, E_r_v, rStart, constantsByType)
+    #rStart = FindTurningPoint(p_squared, E_r_v, type_p, type_t, p, constantsByType)
+    #θ_v = θ(p, p_squared, E_r_v, type_p, type_t, rStart, constantsByType)
+    #τ_v = τ(p_squared, type_p, type_t, E_r_v, rStart, constantsByType)
+    θ_v = θFunction(energy_p, p)
+    τ_v = τFunction(energy_p, p)
     tanφ_v = tanφ(mass_p, mass_t, θ_v)
     tanψ_v = tanψ(θ_v)
     E_t_v = E_t(mass_p, mass_t, energy_p, θ_v)
@@ -130,7 +144,8 @@ function CollisionParams(energy_p::Float64, mass_p::Float64, mass_t::Float64, ty
 end
 
 
-  
+
+
 module QLoss
 using Main: ConstantsByType
 # 
