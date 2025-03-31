@@ -1,0 +1,21 @@
+#!/bin/bash
+#SBATCH -J BCA.jl                  
+#SBATCH -p collegeofscience     
+#SBATCH -N 1                    
+#SBATCH --ntasks-per-node 1   
+#SBATCH -t 168:00:00            #
+#SBATCH -o out.dte            
+#SBATCH -e err.dte             
+
+ulimit -s unlimited
+srun hostname | sort > machinefile.${SLURM_JOB_ID}
+
+
+#source /beegfs/software/intel/oneapi/setvars.sh 
+
+
+echo $SLURM_NPROCS
+
+
+julia run.jl > run.log
+
