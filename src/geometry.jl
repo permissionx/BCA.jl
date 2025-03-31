@@ -2,7 +2,9 @@ import Base: push!
 import Base: delete!
 using .BCA.ConstantFunctions
 using LinearAlgebra
-using Interpolations    
+using Interpolations   
+using Dates
+using ProgressMeter
 
 function Box(Vectors::Matrix{Float64})
     # need to improve to detact if it is orithogonal. 
@@ -37,8 +39,8 @@ end
 
 
 function TypeToProperties(type::Int64, 
-    typeDict::Dict{Int, NamedTuple{(:radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
-              Tuple{Float64, Float64, Float64, Float64, Float64, Float64, Float64}}})
+    typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
+              Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}})
     if haskey(typeDict, type)
         props = typeDict[type]
         return props.radius, props.mass, props.Z, props.dte, props.bde, props.alpha, props.beta 
@@ -122,9 +124,9 @@ function InitConstants(parameters::Parameters)
 end
 
 
-function InitConstantsByType(typeDict::Dict{Int, 
-                             NamedTuple{(:radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
-                                        Tuple{Float64, Float64, Float64, Float64, Float64, Float64, Float64}}},
+function InitConstantsByType(typeDict::Dict{Int64, 
+                             NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
+                                        Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}},
                              constants::Constants) 
     V_upterm = Dict{Vector{Int64}, Float64}()
     a_U = Dict{Vector{Int64}, Float64}()
@@ -155,48 +157,69 @@ function InitConstantsByType(typeDict::Dict{Int,
     return ConstantsByType(V_upterm, a_U, E_m, S_e_upTerm, S_e_downTerm, x_nl, a, Q_nl, Q_loc, qMax_squared)
 end
 
+
 function InitθandτFunctions(parameters::Parameters, constantsByType::ConstantsByType)
     typeDict = parameters.typeDict
     θFunctions = Dict{Vector{Int64}, Function}()
     τFunctions = Dict{Vector{Int64}, Function}()
     
+    if !isfile(parameters.θτFileName)
+        open(parameters.θτFileName, "w") do f
+            write(f, "# θ and τ data for elements ")
+            for type in keys(typeDict)
+                write(f, "$(typeDict[type].name) ")
+            end
+            write(f, "\n")
+            write(f, "# Date: $(Dates.now())\n")
+            write(f, "# E_p_power_range: $(parameters.E_p_power_range)\n")
+            write(f, "# p_range: $(parameters.p_range)\n\n")
+        end
+    end
     for type_p in keys(typeDict)
         for type_t in keys(typeDict)
             mass_p = typeDict[type_p].mass
-            mass_t = typeDict[type_t].mass
-            θInterpolation, τInterpolation = θandτFunctions(mass_p, mass_t, type_p, type_t, constantsByType)
-            
-            θFunctions[[type_p, type_t]] = (E_p, p) -> θInterpolation(E_p, p)
-            τFunctions[[type_p, type_t]] = (E_p, p) -> τInterpolation(E_p, p)
+        mass_t = typeDict[type_t].mass
+        θInterpolation, τInterpolation = θandτFunctions(mass_p, mass_t, type_p, type_t, constantsByType, parameters)
+        
+        θFunctions[[type_p, type_t]] = (E_p, p) -> θInterpolation(E_p, p)
+        τFunctions[[type_p, type_t]] = (E_p, p) -> τInterpolation(E_p, p)
         end
     end
-    
+    println("All θ and τ functions initialized.\n")
     return θFunctions, τFunctions
 end
 
-function θandτFunctions(mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64, constantsByType::ConstantsByType)
-    println("Generating θ and τ functions for $(type_p) and $(type_t)...")
-    E_p_power_range = -1:0.045:8
-    p_range = 0.0:0.02:2.0
-    nE = length(E_p_power_range)
-    np = length(p_range)
-    θMatrix = Array{Float64, 2}(undef, nE, np)
-    τMatrix = Array{Float64, 2}(undef, nE, np)
-    for (i, E_p_power) in enumerate(E_p_power_range)
-        E_p = 10^E_p_power
-        for (j, p) in enumerate(p_range)
-            θ, τ = BCA.θandτ(E_p, mass_p, mass_t, type_p, type_t, p, constantsByType)
-            θMatrix[i, j] = θ
-            τMatrix[i, j] = τ
+
+function θandτFunctions(mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64, constantsByType::ConstantsByType, parameters::Parameters)
+    E_p_axis = Float64[]
+    p_axis = Float64[]
+    θMatrix = Matrix{Float64}(undef, 0, 0)
+    τMatrix = Matrix{Float64}(undef, 0, 0)
+    try
+        E_p_axis, p_axis, θMatrix, τMatrix = LoadθτData(type_p, type_t, parameters)
+        println("θ and τ functions for $(parameters.typeDict[type_p].name) to $(parameters.typeDict[type_t].name) Loaded.")
+    catch
+        println("Loading θ and τ data for $(parameters.typeDict[type_p].name) to $(parameters.typeDict[type_t].name) failed.")
+        E_p_power_range = parameters.E_p_power_range    
+        p_range = parameters.p_range
+        nE = length(E_p_power_range)
+        np = length(p_range)
+        θMatrix = Array{Float64, 2}(undef, nE, np)
+        τMatrix = Array{Float64, 2}(undef, nE, np)
+        @showprogress desc="Generating: " for (i, E_p_power) in enumerate(E_p_power_range)
+            E_p = 10.0^E_p_power
+            for (j, p) in enumerate(p_range)
+                θ, τ = BCA.θandτ(E_p, mass_p, mass_t, type_p, type_t, p, constantsByType)
+                θMatrix[i, j] = θ
+                τMatrix[i, j] = τ
+            end
         end
+        E_p_axis = [10.0^E_p_power for E_p_power in E_p_power_range]
+        p_axis = collect(p_range)    
+        SaveθτData(type_p, type_t, θMatrix, τMatrix, E_p_axis, p_axis, parameters)
     end
 
-    E_p_axis = [10^E_p_power for E_p_power in E_p_power_range]
-    θInterpolation, τInterpolation = θandτInterpolation(θMatrix, τMatrix, E_p_axis, collect(p_range))
-    return θInterpolation, τInterpolation
-end
-
-function θandτInterpolation(θMatrix::Array{Float64,2}, τMatrix::Array{Float64,2}, E_p_axis::Vector{Float64}, p_axis::Vector{Float64})
+    # interpolate
     θFunction = interpolate((E_p_axis, p_axis), θMatrix, Gridded(Linear()))
     τFunction = interpolate((E_p_axis, p_axis), τMatrix, Gridded(Linear()))
     return θFunction, τFunction
@@ -208,6 +231,7 @@ function Simulator(box::Box, inputGridVectors::Matrix{Float64}, periodic::Vector
     constants = InitConstants(parameters)
     constantsByType = InitConstantsByType(parameters.typeDict, constants)
     θFunctions, τFunctions = InitθandτFunctions(parameters, constantsByType)
+
     return Simulator(Vector{Atom}(), Vector{LatticePoint}(), 
                      box, cellGrid, periodic, box.isOrthogonal, 0, 0, 
                      constantsByType, constants,
@@ -222,6 +246,7 @@ function Simulator(primaryVectors::Matrix{Float64}, boxSizes::Vector{Int64},
                    periodic::Vector{Bool}, 
                    latticeRanges::Matrix{Int64}, basis::Matrix{Float64}, basisTypes::Vector{Int64},
                    parameters::Parameters)
+    println("Initializing the simulator...")
     box = CreateBoxByPrimaryVectors(primaryVectors, boxSizes)
     simulator = Simulator(box, inputGridVectors, periodic, parameters)
     for x in latticeRanges[1,1]:latticeRanges[1,2]-1

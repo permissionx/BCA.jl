@@ -127,13 +127,33 @@ end
 
 struct Parameters
     pMax::Float64
-    stopEnergy::Float64
+    θτFileName::String
     vacancyRecoverDistance_squared::Float64
-    pLMax::Float64
-
+    typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}
+    E_p_power_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}
+    p_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}
+    stopEnergy::Float64
+    pLMax::Float64     
     isDumpInCascade::Bool
     isLog::Bool
-
-    typeDict::Dict{Int, NamedTuple{(:radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}
 end
+
+
+function Parameters(
+    # required
+    θτFileName::String,
+    pMax::Float64,  
+    vacancyRecoverDistance::Float64, 
+    typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}, 
+    # optional
+    E_p_power_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64} = -1.0:0.045:8.0,
+    p_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64} = 0.0:0.01:2.0,
+    stopEnergy::Float64 = 0.1, 
+    pLMax::Float64 = 2.0, 
+    isDumpInCascade::Bool = false, 
+    isLog::Bool = false)
+    vacancyRecoverDistance_squared = vacancyRecoverDistance * vacancyRecoverDistance
+    return Parameters(pMax, θτFileName, vacancyRecoverDistance_squared, typeDict, 
+                      E_p_power_range, p_range, stopEnergy, pLMax, isDumpInCascade, isLog)
+end 
 

@@ -1,9 +1,9 @@
-function Dump(simulator::Simulator, filename::String, step::Int64, isAppend::Bool=false)
+function Dump(simulator::Simulator, fileName::String, step::Int64, isAppend::Bool=false)
     if !simulator.isOrthogonal        
         error("The box is not orthogonal, please use the orthogonal box.")
     end
     write_flag = isAppend ? "a" : "w"
-    open(filename, write_flag) do file
+    open(fileName, write_flag) do file
         write(file, "ITEM: TIMESTEP\n")
         write(file, string(step), "\n")
         write(file, "ITEM: NUMBER OF ATOMS\n")
@@ -39,3 +39,76 @@ function log(string::String)
     end
 end
 
+function SaveθτData(type_p::Int64, type_t::Int64, 
+                       θMatrix::Matrix{Float64}, τMatrix::Matrix{Float64}, 
+                       E_p_axis::Vector{Float64}, p_axis::Vector{Float64}, 
+                       parameters::Parameters)
+    fileName = parameters.θτFileName
+    typeDict = parameters.typeDict
+    open(fileName, "a") do f
+        write(f, "@ P type: $(typeDict[type_p].name) & T type: $(typeDict[type_t].name)\n")
+        write(f, "E axis length: $(length(E_p_axis))\n")
+        write(f, "p axis length: $(length(p_axis))\n")
+        write(f, "E_p_axis p_axis θ τ\n")
+        for (i,E) in enumerate(E_p_axis)
+            for (j,p) in enumerate(p_axis)
+                write(f,"$(E) $(p) $(θMatrix[i,j]) $(τMatrix[i,j])\n")
+            end
+        end
+    end
+end
+
+
+function LoadθτData(type_p::Int64, type_t::Int64, parameters::Parameters)
+    typeDict = parameters.typeDict
+    name_p = typeDict[type_p].name
+    name_t = typeDict[type_t].name
+    
+    E_p_values = Vector{Float64}()
+    p_values = Vector{Float64}()
+    θ_values = Vector{Float64}()
+    τ_values = Vector{Float64}()
+    nE = 0
+    np = 0
+    
+    open(parameters.θτFileName, "r") do f
+        lines = readlines(f)
+        i = 1
+        while i <= length(lines)
+            if startswith(lines[i], "@")
+                words = split(lines[i])
+                if name_p == words[4] && name_t == words[8]
+                    i += 1
+                    nE = parse(Int64, split(lines[i])[end])
+                    i += 1
+                    np = parse(Int64, split(lines[i])[end])
+                    i += 2
+                    while i <= length(lines) && !startswith(lines[i], "@") 
+                        if !isempty(lines[i]) && !startswith(lines[i], "#")
+                            E_p_value, p_value, θ_value, τ_value = parse.(Float64, split(lines[i]))
+                            push!(E_p_values, E_p_value)
+                            push!(p_values, p_value)
+                            push!(θ_values, θ_value)
+                            push!(τ_values, τ_value)
+                        end
+                        i += 1
+                    end              
+                    break 
+                else
+                    i += 1
+                end
+            else
+                i += 1
+            end
+        end
+    end
+    if length(E_p_values) == 0
+        error("Elements $(typeDict[type_p].name) to $(typeDict[type_t].name) not found in the θτ-file.")
+    else
+        E_p_axis = sort(unique(E_p_values))
+        p_axis = sort(unique(p_values))
+        θMatrix = reshape(θ_values, np, nE)' # in julia, data is filled column-wise. 
+        τMatrix = reshape(τ_values, np, nE)'
+        return E_p_axis, p_axis, θMatrix, τMatrix
+    end
+end
