@@ -26,6 +26,7 @@ Manifest.toml
 *.dump
 *.csv
 *.log
+*.ipynb
 
 #Output by I2DM
 examples/benchmark_I2DM/I2DM/OUTPUT
