@@ -37,3 +37,4 @@ test
 archive
 .vscode
 thetatau_repository/*
+!thetatau_repository/.gitkeep
