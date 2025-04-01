@@ -158,7 +158,7 @@ function InitConstantsByType(typeDict::Dict{Int64,
 end
 
 
-function InitθandτFunctions(parameters::Parameters, constantsByType::ConstantsByType)
+function InitθτFunctions(parameters::Parameters, constantsByType::ConstantsByType)
     typeDict = parameters.typeDict
     θFunctions = Dict{Vector{Int64}, Function}()
     τFunctions = Dict{Vector{Int64}, Function}()
@@ -179,7 +179,7 @@ function InitθandτFunctions(parameters::Parameters, constantsByType::Constants
         for type_t in keys(typeDict)
             mass_p = typeDict[type_p].mass
         mass_t = typeDict[type_t].mass
-        θInterpolation, τInterpolation = θandτFunctions(mass_p, mass_t, type_p, type_t, constantsByType, parameters)
+        θInterpolation, τInterpolation = θτFunctions(mass_p, mass_t, type_p, type_t, constantsByType, parameters)
         
         θFunctions[[type_p, type_t]] = (E_p, p) -> θInterpolation(E_p, p)
         τFunctions[[type_p, type_t]] = (E_p, p) -> τInterpolation(E_p, p)
@@ -190,7 +190,7 @@ function InitθandτFunctions(parameters::Parameters, constantsByType::Constants
 end
 
 
-function θandτFunctions(mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64, constantsByType::ConstantsByType, parameters::Parameters)
+function θτFunctions(mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64, constantsByType::ConstantsByType, parameters::Parameters)
     E_p_axis = Float64[]
     p_axis = Float64[]
     θMatrix = Matrix{Float64}(undef, 0, 0)
@@ -209,7 +209,7 @@ function θandτFunctions(mass_p::Float64, mass_t::Float64, type_p::Int64, type_
         @showprogress desc="Generating: " for (i, E_p_power) in enumerate(E_p_power_range)
             E_p = 10.0^E_p_power
             for (j, p) in enumerate(p_range)
-                θ, τ = BCA.θandτ(E_p, mass_p, mass_t, type_p, type_t, p, constantsByType)
+                θ, τ = BCA.θτ(E_p, mass_p, mass_t, type_p, type_t, p, constantsByType)
                 θMatrix[i, j] = θ
                 τMatrix[i, j] = τ
             end
@@ -230,7 +230,7 @@ function Simulator(box::Box, inputGridVectors::Matrix{Float64}, periodic::Vector
     cellGrid = CreateCellGrid(box, inputGridVectors)
     constants = InitConstants(parameters)
     constantsByType = InitConstantsByType(parameters.typeDict, constants)
-    θFunctions, τFunctions = InitθandτFunctions(parameters, constantsByType)
+    θFunctions, τFunctions = InitθτFunctions(parameters, constantsByType)
 
     return Simulator(Vector{Atom}(), Vector{LatticePoint}(), 
                      box, cellGrid, periodic, box.isOrthogonal, 0, 0, 

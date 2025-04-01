@@ -32,5 +32,7 @@ Manifest.toml
 examples/benchmark_I2DM/I2DM/OUTPUT
 
 #My files
-my_calculations/
-test/
+my_calculations
+test
+archive
+.vscode

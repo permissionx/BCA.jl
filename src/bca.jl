@@ -1,5 +1,4 @@
 using LinearAlgebra
-using PeriodicTable
 import Base: push!
 include("types.jl")
 include("bca_model.jl")  # In namespace BCA: BCA->(QLoss, Constants)

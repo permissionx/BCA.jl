@@ -101,7 +101,7 @@ function x_t(p::Float64, θ::Float64, x_p::Float64)
     return p * tan(θ / 2) - x_p
 end
 
-function θandτ(energy_p::Float64, mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64,
+function θτ(energy_p::Float64, mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::Int64,
     p::Float64, constantsByType::ConstantsByType)
     p_squared = p * p
     E_r_v = E_r(energy_p, mass_p, mass_t)
