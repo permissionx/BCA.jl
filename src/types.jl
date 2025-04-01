@@ -127,7 +127,7 @@ end
 
 struct Parameters
     pMax::Float64
-    θτFileName::String
+    θτRepository::String
     vacancyRecoverDistance_squared::Float64
     typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}
     E_p_power_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}
@@ -141,7 +141,7 @@ end
 
 function Parameters(
     # required
-    θτFileName::String,
+    θτRepository::String,
     pMax::Float64,  
     vacancyRecoverDistance::Float64, 
     typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}, 
@@ -152,8 +152,11 @@ function Parameters(
     pLMax::Float64 = 2.0, 
     isDumpInCascade::Bool = false, 
     isLog::Bool = false)
+    if !isdir(θτRepository)
+        error("θτRepository $(θτRepository) does not exist.")
+    end
     vacancyRecoverDistance_squared = vacancyRecoverDistance * vacancyRecoverDistance
-    return Parameters(pMax, θτFileName, vacancyRecoverDistance_squared, typeDict, 
+    return Parameters(pMax, θτRepository, vacancyRecoverDistance_squared, typeDict, 
                       E_p_power_range, p_range, stopEnergy, pLMax, isDumpInCascade, isLog)
 end 
 

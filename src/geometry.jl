@@ -163,18 +163,6 @@ function InitθτFunctions(parameters::Parameters, constantsByType::ConstantsByT
     θFunctions = Dict{Vector{Int64}, Function}()
     τFunctions = Dict{Vector{Int64}, Function}()
     
-    if !isfile(parameters.θτFileName)
-        open(parameters.θτFileName, "w") do f
-            write(f, "# θ and τ data for elements ")
-            for type in keys(typeDict)
-                write(f, "$(typeDict[type].name) ")
-            end
-            write(f, "\n")
-            write(f, "# Date: $(Dates.now())\n")
-            write(f, "# E_p_power_range: $(parameters.E_p_power_range)\n")
-            write(f, "# p_range: $(parameters.p_range)\n\n")
-        end
-    end
     for type_p in keys(typeDict)
         for type_t in keys(typeDict)
             mass_p = typeDict[type_p].mass
@@ -206,7 +194,7 @@ function θτFunctions(mass_p::Float64, mass_t::Float64, type_p::Int64, type_t::
         np = length(p_range)
         θMatrix = Array{Float64, 2}(undef, nE, np)
         τMatrix = Array{Float64, 2}(undef, nE, np)
-        @showprogress desc="Generating: " for (i, E_p_power) in enumerate(E_p_power_range)
+        @showprogress desc="Waiting for generating θ and τ data: " for (i, E_p_power) in enumerate(E_p_power_range)
             E_p = 10.0^E_p_power
             for (j, p) in enumerate(p_range)
                 θ, τ = BCA.θτ(E_p, mass_p, mass_t, type_p, type_t, p, constantsByType)

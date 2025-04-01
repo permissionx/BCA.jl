@@ -43,11 +43,16 @@ function SaveθτData(type_p::Int64, type_t::Int64,
                        θMatrix::Matrix{Float64}, τMatrix::Matrix{Float64}, 
                        E_p_axis::Vector{Float64}, p_axis::Vector{Float64}, 
                        parameters::Parameters)
-    fileName = parameters.θτFileName
     typeDict = parameters.typeDict
-    open(fileName, "a") do f
-        write(f, "@ P type: $(typeDict[type_p].name) & T type: $(typeDict[type_t].name)\n")
-        write(f, "E axis length: $(length(E_p_axis))\n")
+    name_p = typeDict[type_p].name
+    name_t = typeDict[type_t].name
+    fileName = parameters.θτRepository*"/$(name_p)_$(name_t).thetatau"  
+    open(fileName, "w") do f
+        write(f, "# E_p_power_range: $(parameters.E_p_power_range)\n")
+        write(f, "# p_range: $(parameters.p_range)\n")
+        write(f, "# Generated at: $(Dates.now())\n\n")
+        write(f, "@ P type: $(name_p) & T type: $(name_t)\n") # to be modified: not neccessry because of the file name has indicated the elements. 
+        write(f, "E axis length: $(length(E_p_axis))\n") 
         write(f, "p axis length: $(length(p_axis))\n")
         write(f, "E_p_axis p_axis θ τ\n")
         for (i,E) in enumerate(E_p_axis)
@@ -71,13 +76,13 @@ function LoadθτData(type_p::Int64, type_t::Int64, parameters::Parameters)
     nE = 0
     np = 0
     
-    open(parameters.θτFileName, "r") do f
+    open(parameters.θτRepository*"/$(name_p)_$(name_t).thetatau", "r") do f
         lines = readlines(f)
         i = 1
         while i <= length(lines)
             if startswith(lines[i], "@")
                 words = split(lines[i])
-                if name_p == words[4] && name_t == words[8]
+                if name_p == words[4] && name_t == words[8]   # to be modified: not neccessry because of the file name has indicated the elements. 
                     i += 1
                     nE = parse(Int64, split(lines[i])[end])
                     i += 1
@@ -103,7 +108,7 @@ function LoadθτData(type_p::Int64, type_t::Int64, parameters::Parameters)
         end
     end
     if length(E_p_values) == 0
-        error("Elements $(typeDict[type_p].name) to $(typeDict[type_t].name) not found in the θτ-file.")
+        error("Loading θ and τ data for Elements $(name_p) to $(name_t) failed.")
     else
         E_p_axis = sort(unique(E_p_values))
         p_axis = sort(unique(p_values))
