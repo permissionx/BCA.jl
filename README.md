@@ -43,7 +43,7 @@ Below is a simplified example of simulating xenon irradiation on graphene:
 
 ```julia
 # Load the BCA.jl modules
-include("path/to/bca.jl")
+include("path/to/main.jl")
 
 # Define lattice parameters
 a = 1.42

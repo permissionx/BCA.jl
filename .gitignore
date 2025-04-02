@@ -28,6 +28,10 @@ Manifest.toml
 *.log
 *.ipynb
 
+# thetatau_repository
+thetatau_repository/*
+!thetatau_repository/.gitkeep
+
 #Output by I2DM
 examples/benchmark_I2DM/I2DM/OUTPUT
 
@@ -36,5 +40,3 @@ my_calculations
 test
 archive
 .vscode
-thetatau_repository/*
-!thetatau_repository/.gitkeep

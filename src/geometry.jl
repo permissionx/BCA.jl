@@ -5,6 +5,8 @@ using LinearAlgebra
 using Interpolations   
 using Dates
 using ProgressMeter
+using PyCall
+@pyimport dscribe.descriptors as descriptors    
 
 function Box(Vectors::Matrix{Float64})
     # need to improve to detact if it is orithogonal. 
@@ -38,12 +40,10 @@ function Atom(type::Int64, coordinate::Vector{Float64}, parameters::Parameters)
 end
 
 
-function TypeToProperties(type::Int64, 
-    typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
-              Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}})
+function TypeToProperties(type::Int64, typeDict::Dict{Int64, Element})
     if haskey(typeDict, type)
-        props = typeDict[type]
-        return props.radius, props.mass, props.Z, props.dte, props.bde, props.alpha, props.beta 
+        element = typeDict[type]
+        return element.radius, element.mass, element.Z, element.dte, element.bde, element.alpha, element.beta 
     else
         error("Unknown atom type: $type")
     end 
@@ -124,10 +124,7 @@ function InitConstants(parameters::Parameters)
 end
 
 
-function InitConstantsByType(typeDict::Dict{Int64, 
-                             NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), 
-                                        Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}},
-                             constants::Constants) 
+function InitConstantsByType(typeDict::Dict{Int64, Element}, constants::Constants) 
     V_upterm = Dict{Vector{Int64}, Float64}()
     a_U = Dict{Vector{Int64}, Float64}()
     E_m = Dict{Int64, Float64}()
@@ -219,14 +216,17 @@ function Simulator(box::Box, inputGridVectors::Matrix{Float64}, periodic::Vector
     constants = InitConstants(parameters)
     constantsByType = InitConstantsByType(parameters.typeDict, constants)
     θFunctions, τFunctions = InitθτFunctions(parameters, constantsByType)
+    soap = InitSoap(parameters)
+
 
     return Simulator(Vector{Atom}(), Vector{LatticePoint}(), 
                      box, cellGrid, periodic, box.isOrthogonal, 0, 0, 
-                     constantsByType, constants,
+                     parameters.typeDict, constantsByType, constants,
                      false, Vector{Int64}(), 0, 0, 
                      parameters.isDumpInCascade, parameters.isLog,
-                     θFunctions, τFunctions)
-end 
+                     θFunctions, τFunctions,
+                     parameters.isSoap, soap)  
+end
 
 
 function Simulator(primaryVectors::Matrix{Float64}, boxSizes::Vector{Int64}, 
@@ -573,6 +573,4 @@ function Save!(simulator::Simulator)
     simulator.isStore = true
     simulator.atomNumberWhenStore = simulator.numberOfAtoms
 end 
-
-
 

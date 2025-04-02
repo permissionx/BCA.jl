@@ -1,3 +1,5 @@
+using PyCall
+
 mutable struct Box
     vectors::Matrix{Float64}
     reciprocalVectors::Matrix{Float64}
@@ -32,6 +34,7 @@ mutable struct Atom
 
     latticePointIndex::Int64 # -1 for off lattice
 end
+
 
 mutable struct LatticePoint
     index::Int64
@@ -107,7 +110,7 @@ mutable struct Simulator
     maxAtomID::Int64
     numberOfAtoms::Int64
 
-
+    typeDict::Dict{Int64, Element}
     constantsByType::ConstantsByType
     constants::Constants
 
@@ -122,6 +125,9 @@ mutable struct Simulator
 
     θFunctions::Dict{Vector{Int64}, Function}
     τFunctions::Dict{Vector{Int64}, Function}
+
+    isSoap::Bool 
+    soap::PyObject
 end
 
 
@@ -129,13 +135,16 @@ struct Parameters
     pMax::Float64
     θτRepository::String
     vacancyRecoverDistance_squared::Float64
-    typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}
+    typeDict::Dict{Int64, Element}
     E_p_power_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}
     p_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64}
     stopEnergy::Float64
     pLMax::Float64     
     isDumpInCascade::Bool
     isLog::Bool
+
+    isSoap::Bool 
+    soapParameters::Vector{Float64}
 end
 
 
@@ -144,19 +153,22 @@ function Parameters(
     θτRepository::String,
     pMax::Float64,  
     vacancyRecoverDistance::Float64, 
-    typeDict::Dict{Int64, NamedTuple{(:name, :radius, :mass, :Z, :dte, :bde, :alpha, :beta), Tuple{String, Float64, Float64, Float64, Float64, Float64, Float64, Float64}}}, 
+    typeDict::Dict{Int64, Element};
     # optional
     E_p_power_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64} = -1.0:0.045:8.0,
     p_range::StepRangeLen{Float64, Base.TwicePrecision{Float64}, Base.TwicePrecision{Float64}, Int64} = 0.0:0.01:2.0,
     stopEnergy::Float64 = 0.1, 
     pLMax::Float64 = 2.0, 
     isDumpInCascade::Bool = false, 
-    isLog::Bool = false)
+    isLog::Bool = false,
+    isSoap::Bool = false,
+    soapParameters::Vector{Float64} = [2.6, 8.0, 6.0])
     if !isdir(θτRepository)
         error("θτRepository $(θτRepository) does not exist.")
     end
     vacancyRecoverDistance_squared = vacancyRecoverDistance * vacancyRecoverDistance
     return Parameters(pMax, θτRepository, vacancyRecoverDistance_squared, typeDict, 
-                      E_p_power_range, p_range, stopEnergy, pLMax, isDumpInCascade, isLog)
+                      E_p_power_range, p_range, stopEnergy, pLMax, isDumpInCascade, isLog,
+                      isSoap, soapParameters)
 end 
 

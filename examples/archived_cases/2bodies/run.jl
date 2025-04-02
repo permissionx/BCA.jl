@@ -1,4 +1,4 @@
-include("../../src/bca.jl")
+include("../../src/main.jl")
 
 using Random
 include("modules.jl")
